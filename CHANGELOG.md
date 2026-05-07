@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.16
+
+- 修复使用自定义模型服务 KEY 启动 Codex 时仍提示缺少 `OPENAI_API_KEY` 的问题。
+- 启动时会将当前选中的 KEY 同时写入服务自己的环境变量和 Codex CLI 兼容的 `OPENAI_API_KEY`。
+
 ## v0.3.15
 
 - 安装并验证 .NET 8 SDK 构建链路。

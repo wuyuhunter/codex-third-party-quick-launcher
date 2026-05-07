@@ -1,5 +1,5 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.3.15"
+$script:CodexSwitcherVersion = "v0.3.16"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:CodexSwitcherGitHub = "GitHub: 待创建"
 $script:CodexSwitcherGitee = "Gitee: 待创建"
@@ -1356,6 +1356,9 @@ function Set-CodexSelectionEnvironment {
     }
 
     Set-Item -Path "Env:$targetEnvKey" -Value $apiKey
+    if ($targetEnvKey -ne "OPENAI_API_KEY") {
+        Set-Item -Path "Env:OPENAI_API_KEY" -Value $apiKey
+    }
     $providerId = if ($provider.Id) { $provider.Id } else { $provider.id }
     $providerName = if ($provider.Name) { $provider.Name } else { $provider.name }
     $providerProfile = if ($provider.ProfileName) { $provider.ProfileName } else { $provider.profile }
@@ -1385,6 +1388,8 @@ function Set-CodexSelectionEnvironment {
         profile = $providerProfile
         baseUrl = $providerBaseUrl
         envKey = $targetEnvKey
+        codexEnvKey = "OPENAI_API_KEY"
+        openAIEnvMirrored = ($targetEnvKey -ne "OPENAI_API_KEY")
         keySource = $KeySourceId
         keyName = $keyName
         keyPrefix = Get-SecretPrefix $apiKey
@@ -1408,6 +1413,8 @@ function Set-CodexSelectionEnvironment {
         ProfileName = $providerProfile
         BaseUrl = $providerBaseUrl
         EnvKey = $targetEnvKey
+        CodexEnvKey = "OPENAI_API_KEY"
+        OpenAIEnvMirrored = ($targetEnvKey -ne "OPENAI_API_KEY")
         KeySource = $KeySourceId
         KeyName = $keyName
         KeyPrefix = Get-SecretPrefix $apiKey
