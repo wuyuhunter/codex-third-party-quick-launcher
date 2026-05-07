@@ -6,6 +6,7 @@ Do not commit real runtime configuration or credentials.
 
 Keep these paths out of GitHub releases and source commits:
 
+- `.omx/`
 - `state/codex-quick-launcher-config.json`
 - `logs/`
 - `secrets/`
@@ -16,7 +17,7 @@ The repository includes only `state/codex-quick-launcher-config.example.json`, w
 
 ## Before Publishing
 
-Run a secret scan before every public upload. At minimum, check for `sk-` style keys, local-only paths, and private coordination files.
+Run a secret scan before every public upload. At minimum, check for `sk-` style keys, bearer tokens, local-only paths, private base URLs, logs, and private coordination files such as `.omx/`.
 
 If a real key is committed by mistake, revoke that key immediately and rewrite the public history before sharing the repository.
 

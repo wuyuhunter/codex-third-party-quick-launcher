@@ -17,6 +17,7 @@ These paths are created or updated after use and should not be published with re
 - `state/codex-quick-launcher-config.json`: the only active program config file. It may contain API keys.
 - `logs/`: launcher logs.
 - `secrets/`: legacy/compatibility credential directory. The current config flow does not require it.
+- `.omx/`: local OMX workflow state. It is useful during development but must not be included in public upload packages.
 
 ## Documentation
 

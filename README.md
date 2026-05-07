@@ -1,6 +1,12 @@
-﻿# Codex 便捷启动器 v0.3.18
+﻿# Codex 便捷启动器
 
-面向中文环境下 Windows 用户的 Codex 启动入口。目标是让普通用户少碰命令行：安装运行环境、配置模型服务、选择模型和权限模式，然后直接启动 Codex。
+Codex 便捷启动器是一个面向中文 Windows 用户的第三方桌面启动工具。它把 Codex CLI 的环境安装、模型服务配置、KEY 管理、模型选择、权限模式选择和历史会话恢复集中到一个简单的图形界面里，尽量减少普通用户直接操作命令行的成本。
+
+开发这个软件的初衷，是希望能把好用的 AI 工具更轻松地分享给家人、朋友和同事，让他们不必先理解复杂的终端命令和配置文件，也能较快完成安装、配置并开始体验 AI 带来的便利和乐趣。
+
+如果您已经熟悉命令行、脚本、开发环境和模型服务配置，也可以直接使用 Codex CLI、官方文档和更专业的开发工具。本项目更关注“快速上手”和“方便分享”，不是为了替代专业工作流。
+
+本项目是第三方社区工具，不是 OpenAI 官方项目，也未获得 OpenAI 赞助、背书或关联授权。OpenAI、Codex、GPT 等名称属于其各自权利人；本项目仅在说明兼容对象和依赖关系时使用这些名称。
 
 底层依赖 OpenAI Codex CLI，支持 OpenAI 及兼容 `/v1/responses` 的模型服务。安装流程优先使用本地网络更友好的镜像源，降低首次体验门槛。
 
@@ -85,9 +91,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-launcher.ps1
 
 - 开源协议：MIT 协议，内置文本见 `LICENSE`。
 - 中文参考译文：见 `LICENSE.zh-CN.md`，英文 `LICENSE` 是正式许可文本。
+- 项目性质：第三方社区工具。不要使用 OpenAI 官方 Logo、图标、字体或其他品牌资产作为本项目标识。
 - GitHub：待创建。创建仓库后，把 README 里的占位改成真实链接。
 - Gitee：待创建。建议作为国内镜像和备用下载入口，创建后同步到 README。
-- 支持与联系：见 `SUPPORT.md`，临时联系邮箱为 `wuyuhunter@126.com`。
+- 支持与联系：见 `SUPPORT.md`。仓库创建后优先使用 GitHub Issues 和 Gitee Issues。
 - 作者：夏小曦、知晴、砚行。
 
 分发前建议检查：
@@ -95,7 +102,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-launcher.ps1
 1. `state\codex-quick-launcher-config.json` 不存在，或已经删除真实 KEY。
 2. `logs/` 不包含本机路径、报错截图或个人信息。
 3. `secrets/` 不存在，或为空。
-4. README、BUILD.md、RELEASE_CONTENTS.md、LICENSE、LICENSE.zh-CN.md、SUPPORT.md、SECURITY.md、CHANGELOG 保留在包内。
+4. `.omx/`、`.git/`、`artifacts/`、`src/**/bin/`、`src/**/obj/` 不进入发布包。
+5. README、BUILD.md、RELEASE_CONTENTS.md、LICENSE、LICENSE.zh-CN.md、SUPPORT.md、SECURITY.md、CHANGELOG 保留在包内。
 
 ## 版本记录
 

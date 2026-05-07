@@ -40,6 +40,7 @@ This project is intended to be published as a clean portable Windows package.
 - `src\**\bin\`
 - `src\**\obj\`
 - `*.zip`
+- `.omx\`
 - `.git\`
 - `.vscode\`
 - `Thumbs.db`

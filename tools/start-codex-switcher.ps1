@@ -1500,14 +1500,20 @@ function Show-CodexAboutDialog {
         </StackPanel>
 
         <StackPanel Grid.Row="1">
-            <TextBlock Text="软件初衷"
+            <TextBlock Text="软件说明"
                        FontSize="15"
                        FontWeight="SemiBold"
                        Margin="0,0,0,8"/>
-            <TextBlock Text="这是一个面向 Windows 用户的 Codex 启动入口，把安装环境、模型服务配置、KEY 选择、模型选择、权限模式和历史会话恢复收在一个干净的面板里。它的目标是让普通用户少碰命令行，同时保留进阶用户需要的可控启动参数。"
+            <TextBlock Text="这是一个面向 Windows 用户的第三方 Codex 启动入口，把安装环境、模型服务配置、KEY 选择、模型选择、权限模式和历史会话恢复收在一个干净的面板里。它的目标是让普通用户少碰命令行，同时保留进阶用户需要的可控启动参数。"
                        Foreground="#475569"
                        FontSize="13"
                        LineHeight="20"
+                       TextWrapping="Wrap"/>
+            <TextBlock Text="本项目是第三方社区工具，不是 OpenAI 官方项目，也未获得 OpenAI 赞助、背书或关联授权。OpenAI、Codex、GPT 等名称属于其各自权利人；本项目仅在说明兼容对象和依赖关系时使用这些名称。"
+                       Margin="0,10,0,0"
+                       Foreground="#64748B"
+                       FontSize="12"
+                       LineHeight="18"
                        TextWrapping="Wrap"/>
 
             <Border Height="1" Background="#E2E8F0" Margin="0,18,0,14"/>

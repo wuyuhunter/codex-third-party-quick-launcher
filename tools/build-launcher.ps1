@@ -27,6 +27,8 @@ dotnet publish $project `
     -r win-x64 `
     --self-contained false `
     -p:PublishSingleFile=true `
+    -p:DebugType=None `
+    -p:DebugSymbols=false `
     -o $publishDir
 
 if ($LASTEXITCODE -ne 0) {

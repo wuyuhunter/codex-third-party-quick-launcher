@@ -88,10 +88,10 @@ internal static class Program
                     }
 
                     MessageBox.Show(
-                        "Codex 切换器启动脚本退出过快，窗口没有打开。\n\n" +
+                        "Codex 便捷启动器启动脚本退出过快，窗口没有打开。\n\n" +
                         "错误摘要：\n" + (string.IsNullOrWhiteSpace(errorText) ? "无输出。" : errorText) +
                         "\n\n日志目录：\n" + logDir,
-                        "Codex 切换器",
+                        "Codex 便捷启动器",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                     return process.ExitCode;
@@ -103,8 +103,8 @@ internal static class Program
         catch (Exception ex)
         {
             MessageBox.Show(
-                "Codex 切换器启动失败。\n\n请确认已安装 PowerShell 7、Windows Terminal 和 Codex CLI。\n\n" + ex.Message,
-                "Codex 切换器",
+                "Codex 便捷启动器启动失败。\n\n请确认已安装 PowerShell 7、Windows Terminal 和 Codex CLI。\n\n" + ex.Message,
+                "Codex 便捷启动器",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             return 1;

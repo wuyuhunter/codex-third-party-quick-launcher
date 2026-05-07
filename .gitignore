@@ -1,4 +1,5 @@
 # Runtime output
+.omx/
 logs/
 secrets/
 *.tmp
