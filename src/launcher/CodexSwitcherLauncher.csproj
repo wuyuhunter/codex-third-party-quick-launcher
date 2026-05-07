@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Codex 便捷启动器</AssemblyName>
     <ApplicationIcon>codex-danger.ico</ApplicationIcon>
-    <Version>0.3.16</Version>
+    <Version>0.3.17</Version>
     <Authors>夏小曦 &amp; 知晴 &amp; 砚行</Authors>
   </PropertyGroup>
 </Project>

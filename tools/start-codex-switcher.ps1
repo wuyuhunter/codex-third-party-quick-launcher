@@ -2015,10 +2015,14 @@ if (-not $InTerminal) {
 }
 
 $providerArgs = @()
+$resumeProviderOverrideArgs = @()
 if ($resolved.ProfileName) {
     $providerArgs += @("--profile", $resolved.ProfileName)
+    $resumeProviderOverrideArgs += @("--profile", $resolved.ProfileName)
+    $resumeProviderOverrideArgs += @("-c", "model_provider=`"$($resolved.Provider)`"")
 } else {
     $providerArgs += $resolved.ConfigArgs
+    $resumeProviderOverrideArgs += $resolved.ConfigArgs
 }
 $providerArgs += Get-CodexPermissionModeArgs $PermissionMode
 
@@ -2032,6 +2036,7 @@ if ($ResumeHistory) {
     if ($ResumeSessionCwd -and (Test-Path -LiteralPath $ResumeSessionCwd -PathType Container)) {
         $forwardedArgs += @("-C", $ResumeSessionCwd)
     }
+    $forwardedArgs += $resumeProviderOverrideArgs
 } else {
     $forwardedArgs += $providerArgs
 }
