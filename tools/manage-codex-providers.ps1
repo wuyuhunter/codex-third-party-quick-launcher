@@ -99,45 +99,6 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 
-function Open-CodexLauncherLicense {
-    $root = Split-Path -Parent $script:CodexSwitcherScriptDir
-    $licensePath = Join-Path $root "LICENSE"
-    if (Test-Path -LiteralPath $licensePath) {
-        Start-CodexProcess -FilePath $licensePath
-        return
-    }
-
-    [System.Windows.MessageBox]::Show("找不到内置 MIT 协议文件：`n$licensePath", "Codex 便捷启动器", "OK", "Warning") | Out-Null
-}
-
-function Register-CodexLauncherFooter {
-    param(
-        [Parameter(Mandatory = $true)]$Window,
-        [Parameter(Mandatory = $true)][string]$LicenseLinkName,
-        [Parameter(Mandatory = $true)][string]$GithubLogoName,
-        [Parameter(Mandatory = $true)][string]$GiteeLogoName
-    )
-
-    $licenseLink = $Window.FindName($LicenseLinkName)
-    if ($licenseLink) {
-        $licenseLink.Add_MouseLeftButtonUp({ Open-CodexLauncherLicense })
-    }
-
-    $githubLogo = $Window.FindName($GithubLogoName)
-    if ($githubLogo) {
-        $githubLogo.Add_MouseLeftButtonUp({
-            [System.Windows.MessageBox]::Show("GitHub 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
-        })
-    }
-
-    $giteeLogo = $Window.FindName($GiteeLogoName)
-    if ($giteeLogo) {
-        $giteeLogo.Add_MouseLeftButtonUp({
-            [System.Windows.MessageBox]::Show("Gitee 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
-        })
-    }
-}
-
 $switcherVersionForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Version)
 $launcherProductForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Product)
 $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Authors)
@@ -153,7 +114,7 @@ $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$scr
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#1E293B"/>
@@ -181,7 +142,6 @@ $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$scr
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -191,11 +151,15 @@ $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$scr
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="配置模型服务提供方和 KEY" FontSize="20" FontWeight="SemiBold"/>
-                <TextBlock Text="维护兼容 Codex 的模型服务地址、KEY、模型列表和推理强度。KEY 会保存在本启动器目录，请勿转发已填写 KEY 的副本。"
+                <TextBlock Text="维护服务、KEY、模型和推理强度。KEY 保存在当前目录。"
                            Margin="0,3,0,0"
                            Foreground="#64748B"
                            FontSize="12"
                            TextWrapping="Wrap"/>
+                <TextBlock Text="版本：$switcherVersionForXaml    作者：$launcherAuthorsForXaml"
+                           Margin="0,3,0,0"
+                           Foreground="#94A3B8"
+                           FontSize="11"/>
             </StackPanel>
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
@@ -563,50 +527,6 @@ $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$scr
                     BorderBrush="#CBD5E1"
                     Foreground="#334155"/>
         </Grid>
-        <StackPanel Grid.Row="3"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,8,0,0"
-                    VerticalAlignment="Center">
-            <TextBlock Text="$switcherVersionForXaml" Foreground="#94A3B8" FontSize="11"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <TextBlock x:Name="ManageLicenseLink"
-                       Text="MIT 协议"
-                       Foreground="#64748B"
-                       FontSize="11"
-                       TextDecorations="Underline"
-                       Cursor="Hand"
-                       ToolTip="打开内置 MIT 协议"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="ManageGithubLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="GitHub 链接待创建">
-                <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Path Fill="#475569"
-                              Data="M8,0 C3.58,0 0,3.58 0,8 C0,11.54 2.29,14.53 5.47,15.59 C5.87,15.66 6.02,15.42 6.02,15.21 C6.02,15.02 6.01,14.39 6.01,13.72 C4,14.09 3.48,13.23 3.32,12.78 C3.23,12.55 2.84,11.84 2.5,11.65 C2.22,11.5 1.82,11.13 2.49,11.12 C3.12,11.11 3.57,11.7 3.72,11.94 C4.44,13.15 5.59,12.81 6.05,12.6 C6.12,12.08 6.33,11.73 6.56,11.53 C4.78,11.33 2.92,10.64 2.92,7.58 C2.92,6.71 3.23,5.99 3.74,5.43 C3.66,5.23 3.38,4.41 3.82,3.31 C3.82,3.31 4.49,3.1 6.02,4.13 C6.66,3.95 7.34,3.86 8.02,3.86 C8.7,3.86 9.38,3.95 10.02,4.13 C11.55,3.09 12.22,3.31 12.22,3.31 C12.66,4.41 12.38,5.23 12.3,5.43 C12.81,5.99 13.12,6.7 13.12,7.58 C13.12,10.65 11.25,11.33 9.47,11.53 C9.76,11.78 10.01,12.26 10.01,13.01 C10.01,14.08 10,14.94 10,15.21 C10,15.42 10.15,15.67 10.55,15.59 C13.71,14.53 16,11.54 16,8 C16,3.58 12.42,0 8,0 Z"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="GitHub" Margin="4,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="ManageGiteeLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="Gitee 链接待创建">
-                <Viewbox Width="11" Height="11" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>
-                        <Path Stroke="#64748B" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="Gitee" Margin="3,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | 作者：$launcherAuthorsForXaml" Foreground="#94A3B8" FontSize="11"/>
-        </StackPanel>
     </Grid>
 </Window>
 "@
@@ -654,8 +574,6 @@ $exportConfigButton = $window.FindName("ExportConfigButton")
 $importConfigButton = $window.FindName("ImportConfigButton")
 $closeButton = $window.FindName("CloseButton")
 $statusText = $window.FindName("StatusText")
-Register-CodexLauncherFooter -Window $window -LicenseLinkName "ManageLicenseLink" -GithubLogoName "ManageGithubLogo" -GiteeLogoName "ManageGiteeLogo"
-
 function Set-Status {
     param([string]$Message)
     $statusText.Text = $Message

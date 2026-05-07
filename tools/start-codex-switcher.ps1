@@ -140,45 +140,6 @@ function Start-CodexProcess {
     }
 }
 
-function Open-CodexLauncherLicense {
-    $root = Split-Path -Parent $script:CodexSwitcherScriptDir
-    $licensePath = Join-Path $root "LICENSE"
-    if (Test-Path -LiteralPath $licensePath) {
-        Start-CodexProcess -FilePath $licensePath
-        return
-    }
-
-    [System.Windows.MessageBox]::Show("找不到内置 MIT 协议文件：`n$licensePath", "Codex 便捷启动器", "OK", "Warning") | Out-Null
-}
-
-function Register-CodexLauncherFooter {
-    param(
-        [Parameter(Mandatory = $true)]$Window,
-        [Parameter(Mandatory = $true)][string]$LicenseLinkName,
-        [Parameter(Mandatory = $true)][string]$GithubLogoName,
-        [Parameter(Mandatory = $true)][string]$GiteeLogoName
-    )
-
-    $licenseLink = $Window.FindName($LicenseLinkName)
-    if ($licenseLink) {
-        $licenseLink.Add_MouseLeftButtonUp({ Open-CodexLauncherLicense })
-    }
-
-    $githubLogo = $Window.FindName($GithubLogoName)
-    if ($githubLogo) {
-        $githubLogo.Add_MouseLeftButtonUp({
-            [System.Windows.MessageBox]::Show("GitHub 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
-        })
-    }
-
-    $giteeLogo = $Window.FindName($GiteeLogoName)
-    if ($giteeLogo) {
-        $giteeLogo.Add_MouseLeftButtonUp({
-            [System.Windows.MessageBox]::Show("Gitee 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
-        })
-    }
-}
-
 function Get-PersistedCodexSelection {
     try {
         $state = Get-CodexSwitcherSelection
@@ -389,7 +350,7 @@ function Show-CodexAdvancedComponentsDialog {
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#1E293B"/>
@@ -557,7 +518,7 @@ function Show-CodexInstallerUi {
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#1E293B"/>
@@ -575,7 +536,6 @@ function Show-CodexInstallerUi {
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -585,6 +545,10 @@ function Show-CodexInstallerUi {
                        Foreground="#64748B"
                        TextWrapping="Wrap"
                        FontSize="13"/>
+            <TextBlock Text="版本：$switcherVersionForXaml    作者：$launcherAuthorsForXaml"
+                       Margin="0,6,0,0"
+                       Foreground="#94A3B8"
+                       FontSize="12"/>
         </StackPanel>
 
         <Border Grid.Row="1"
@@ -657,50 +621,6 @@ function Show-CodexInstallerUi {
                         Foreground="#334155"/>
             </StackPanel>
         </Grid>
-        <StackPanel Grid.Row="4"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,8,0,0"
-                    VerticalAlignment="Center">
-            <TextBlock Text="$switcherVersionForXaml" Foreground="#94A3B8" FontSize="11"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <TextBlock x:Name="InstallerLicenseLink"
-                       Text="MIT 协议"
-                       Foreground="#64748B"
-                       FontSize="11"
-                       TextDecorations="Underline"
-                       Cursor="Hand"
-                       ToolTip="打开内置 MIT 协议"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="InstallerGithubLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="GitHub 链接待创建">
-                <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Path Fill="#475569"
-                              Data="M8,0 C3.58,0 0,3.58 0,8 C0,11.54 2.29,14.53 5.47,15.59 C5.87,15.66 6.02,15.42 6.02,15.21 C6.02,15.02 6.01,14.39 6.01,13.72 C4,14.09 3.48,13.23 3.32,12.78 C3.23,12.55 2.84,11.84 2.5,11.65 C2.22,11.5 1.82,11.13 2.49,11.12 C3.12,11.11 3.57,11.7 3.72,11.94 C4.44,13.15 5.59,12.81 6.05,12.6 C6.12,12.08 6.33,11.73 6.56,11.53 C4.78,11.33 2.92,10.64 2.92,7.58 C2.92,6.71 3.23,5.99 3.74,5.43 C3.66,5.23 3.38,4.41 3.82,3.31 C3.82,3.31 4.49,3.1 6.02,4.13 C6.66,3.95 7.34,3.86 8.02,3.86 C8.7,3.86 9.38,3.95 10.02,4.13 C11.55,3.09 12.22,3.31 12.22,3.31 C12.66,4.41 12.38,5.23 12.3,5.43 C12.81,5.99 13.12,6.7 13.12,7.58 C13.12,10.65 11.25,11.33 9.47,11.53 C9.76,11.78 10.01,12.26 10.01,13.01 C10.01,14.08 10,14.94 10,15.21 C10,15.42 10.15,15.67 10.55,15.59 C13.71,14.53 16,11.54 16,8 C16,3.58 12.42,0 8,0 Z"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="GitHub" Margin="4,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="InstallerGiteeLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="Gitee 链接待创建">
-                <Viewbox Width="11" Height="11" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>
-                        <Path Stroke="#64748B" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="Gitee" Margin="3,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | 作者：$launcherAuthorsForXaml" Foreground="#94A3B8" FontSize="11"/>
-        </StackPanel>
     </Grid>
 </Window>
 "@
@@ -714,7 +634,6 @@ function Show-CodexInstallerUi {
     $fullInstall = $window.FindName("FullInstallButton")
     $advancedComponents = $window.FindName("AdvancedComponentsButton")
     $close = $window.FindName("CloseButton")
-    Register-CodexLauncherFooter -Window $window -LicenseLinkName "InstallerLicenseLink" -GithubLogoName "InstallerGithubLogo" -GiteeLogoName "InstallerGiteeLogo"
     $installerScript = Join-Path $script:CodexSwitcherScriptDir "install-codex-switcher-prereqs.ps1"
 
     $refreshView = {
@@ -918,7 +837,7 @@ function Select-CodexResumeSessionWithUi {
         MinHeight="520"
         WindowStartupLocation="CenterOwner"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -1198,14 +1117,14 @@ function Show-CodexConnectivityUi {
     [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="测试模型服务连通性"
+        Title="测试连通性"
         Width="980"
         Height="660"
         MinWidth="860"
         MinHeight="540"
         WindowStartupLocation="CenterScreen"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -1214,7 +1133,7 @@ function Show-CodexConnectivityUi {
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <TextBlock Text="测试模型服务连通性" FontSize="22" FontWeight="SemiBold" Foreground="#1E293B"/>
+            <TextBlock Text="测试连通性" FontSize="22" FontWeight="SemiBold" Foreground="#1E293B"/>
             <TextBlock x:Name="SummaryText"
                        Text="进入页面后自动逐个检测模型服务和 KEY，不显示完整 KEY。"
                        Margin="0,6,0,0"
@@ -1498,7 +1417,7 @@ function Select-CodexProviderWithUi {
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        FontFamily="Segoe UI">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#1E293B"/>
@@ -1521,7 +1440,6 @@ function Select-CodexProviderWithUi {
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,14">
@@ -1531,21 +1449,25 @@ function Select-CodexProviderWithUi {
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="Codex 便捷启动器" FontSize="26" FontWeight="SemiBold"/>
-                <TextBlock Text="面向中文环境下 Windows 用户的一站式入口：安装运行环境、配置模型服务、选择模型和权限模式，然后打开 Codex。"
+                <TextBlock Text="选择服务、KEY、模型和权限后打开 Codex。"
                            Margin="0,6,0,0"
                            Foreground="#64748B"
                            TextWrapping="Wrap"
                            FontSize="13"/>
+                <TextBlock Text="版本：$switcherVersionForXaml    作者：$launcherAuthorsForXaml"
+                           Margin="0,6,0,0"
+                           Foreground="#94A3B8"
+                           FontSize="12"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                 <Button x:Name="InstallButton"
-                        Content="安装环境"
+                        Content="安装"
                         Background="#FFFFFF"
                         BorderBrush="#CBD5E1"
                         Foreground="#334155"
                         Margin="0,0,10,0"/>
                 <Button x:Name="ManageButton"
-                        Content="配置服务"
+                        Content="配置"
                         Background="#FFFFFF"
                         BorderBrush="#CBD5E1"
                         Foreground="#334155"/>
@@ -1633,7 +1555,7 @@ function Select-CodexProviderWithUi {
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="ConnectivityButton"
-                    Content="测试可用性"
+                    Content="测试连通性"
                     Grid.Column="0"
                     Background="#FFFFFF"
                     BorderBrush="#CBD5E1"
@@ -1659,50 +1581,6 @@ function Select-CodexProviderWithUi {
                     Foreground="#FFFFFF"/>
             </StackPanel>
         </Grid>
-        <StackPanel Grid.Row="3"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,8,0,0"
-                    VerticalAlignment="Center">
-            <TextBlock Text="$switcherVersionForXaml" Foreground="#94A3B8" FontSize="11"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <TextBlock x:Name="LauncherLicenseLink"
-                       Text="MIT 协议"
-                       Foreground="#64748B"
-                       FontSize="11"
-                       TextDecorations="Underline"
-                       Cursor="Hand"
-                       ToolTip="打开内置 MIT 协议"/>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="LauncherGithubLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="GitHub 链接待创建">
-                <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Path Fill="#475569"
-                              Data="M8,0 C3.58,0 0,3.58 0,8 C0,11.54 2.29,14.53 5.47,15.59 C5.87,15.66 6.02,15.42 6.02,15.21 C6.02,15.02 6.01,14.39 6.01,13.72 C4,14.09 3.48,13.23 3.32,12.78 C3.23,12.55 2.84,11.84 2.5,11.65 C2.22,11.5 1.82,11.13 2.49,11.12 C3.12,11.11 3.57,11.7 3.72,11.94 C4.44,13.15 5.59,12.81 6.05,12.6 C6.12,12.08 6.33,11.73 6.56,11.53 C4.78,11.33 2.92,10.64 2.92,7.58 C2.92,6.71 3.23,5.99 3.74,5.43 C3.66,5.23 3.38,4.41 3.82,3.31 C3.82,3.31 4.49,3.1 6.02,4.13 C6.66,3.95 7.34,3.86 8.02,3.86 C8.7,3.86 9.38,3.95 10.02,4.13 C11.55,3.09 12.22,3.31 12.22,3.31 C12.66,4.41 12.38,5.23 12.3,5.43 C12.81,5.99 13.12,6.7 13.12,7.58 C13.12,10.65 11.25,11.33 9.47,11.53 C9.76,11.78 10.01,12.26 10.01,13.01 C10.01,14.08 10,14.94 10,15.21 C10,15.42 10.15,15.67 10.55,15.59 C13.71,14.53 16,11.54 16,8 C16,3.58 12.42,0 8,0 Z"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="GitHub" Margin="4,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | " Foreground="#CBD5E1" FontSize="11"/>
-            <StackPanel x:Name="LauncherGiteeLogo"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        Cursor="Hand"
-                        ToolTip="Gitee 链接待创建">
-                <Viewbox Width="11" Height="11" Stretch="Uniform" VerticalAlignment="Center">
-                    <Canvas Width="16" Height="16">
-                        <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>
-                        <Path Stroke="#64748B" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
-                    </Canvas>
-                </Viewbox>
-                <TextBlock Text="Gitee" Margin="3,0,0,0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-            <TextBlock Text=" | 作者：$launcherAuthorsForXaml" Foreground="#94A3B8" FontSize="11"/>
-        </StackPanel>
     </Grid>
 </Window>
 "@
@@ -1726,7 +1604,6 @@ function Select-CodexProviderWithUi {
     $manage = $window.FindName("ManageButton")
     $install = $window.FindName("InstallButton")
     $connectivity = $window.FindName("ConnectivityButton")
-    Register-CodexLauncherFooter -Window $window -LicenseLinkName "LauncherLicenseLink" -GithubLogoName "LauncherGithubLogo" -GiteeLogoName "LauncherGiteeLogo"
     $currentSelection = Get-PersistedCodexSelection
 
     foreach ($item in @($script:CodexSwitcherSettings.models)) {
@@ -1859,7 +1736,7 @@ function Select-CodexProviderWithUi {
     Update-PermissionModeHelp
     $install.Add_Click({
         Show-CodexInstallerUi
-        $statusText.Text = "安装状态已返回。可点击「安装环境」重新检测，或继续配置模型服务和 KEY。"
+        $statusText.Text = "安装状态已返回。可点击「安装」重新检测，或继续配置模型服务和 KEY。"
     })
     $connectivity.Add_Click({
         Show-CodexConnectivityUi
