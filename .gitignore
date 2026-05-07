@@ -2,6 +2,12 @@
 logs/
 secrets/
 *.tmp
+*.zip
+
+# Build output
+artifacts/
+src/**/bin/
+src/**/obj/
 
 # Local config may contain API keys after the user saves settings.
 state/codex-quick-launcher-config.json

@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## v0.3.15
+
+- 安装并验证 .NET 8 SDK 构建链路。
+- 新增 `tools/build-launcher.ps1`，用于从 `src/launcher/` 重编根目录 `Codex 便捷启动器.exe`。
+- 新增 `BUILD.md` 和 `RELEASE_CONTENTS.md`，明确构建方式、源码组成、发布包内容和排除项。
+- 更新 `.gitignore`，排除构建输出、临时压缩包、运行日志和真实配置。
+- 重编 Windows exe，使根目录 exe 与当前源码版本对齐。
+
 ## v0.3.14
 
 - 字体恢复为 v1.9.2 的 `Segoe UI` 配置。

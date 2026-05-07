@@ -1,4 +1,4 @@
-﻿# Codex 便捷启动器 v0.3.14
+﻿# Codex 便捷启动器 v0.3.15
 
 面向中文环境下 Windows 用户的 Codex 启动入口。目标是让普通用户少碰命令行：安装运行环境、配置模型服务、选择模型和权限模式，然后直接启动 Codex。
 
@@ -71,6 +71,16 @@ state\codex-quick-launcher-config.json
 - `state/` 只保留安全示例配置，真实配置由程序运行后生成。
 - `src/launcher/` 保留 Windows exe 包装器源码，主逻辑仍在 `tools/` 脚本中。
 
+## 构建
+
+重编 Windows exe 需要 .NET 8 SDK。安装后运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-launcher.ps1
+```
+
+构建脚本会从 `src/launcher/` 编译 exe，并覆盖根目录的 `Codex 便捷启动器.exe`。详细说明见 `BUILD.md`。
+
 ## 开源与分发
 
 - 开源协议：MIT 协议，内置文本见 `LICENSE`。
@@ -85,7 +95,7 @@ state\codex-quick-launcher-config.json
 1. `state\codex-quick-launcher-config.json` 不存在，或已经删除真实 KEY。
 2. `logs/` 不包含本机路径、报错截图或个人信息。
 3. `secrets/` 不存在，或为空。
-4. README、LICENSE、LICENSE.zh-CN.md、SUPPORT.md、SECURITY.md、CHANGELOG 保留在包内。
+4. README、BUILD.md、RELEASE_CONTENTS.md、LICENSE、LICENSE.zh-CN.md、SUPPORT.md、SECURITY.md、CHANGELOG 保留在包内。
 
 ## 版本记录
 

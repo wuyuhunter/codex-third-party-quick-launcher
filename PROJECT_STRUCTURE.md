@@ -21,6 +21,8 @@ These paths are created or updated after use and should not be published with re
 ## Documentation
 
 - `README.md`: user-facing usage and distribution notes.
+- `BUILD.md`: how to rebuild the Windows exe wrapper.
+- `RELEASE_CONTENTS.md`: what belongs in source control and release packages.
 - `CHANGELOG.md`: version history mapped to the new `0.x` product line.
 - `LICENSE`: MIT license text.
 - `LICENSE.zh-CN.md`: unofficial Simplified Chinese reference translation. The English `LICENSE` remains the legal license text.
