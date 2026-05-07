@@ -4,9 +4,9 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
-    <AssemblyName>Codex 切换器</AssemblyName>
+    <AssemblyName>Codex 便捷启动器</AssemblyName>
     <ApplicationIcon>codex-danger.ico</ApplicationIcon>
-    <Version>1.9.0</Version>
-    <Authors>夏小曦 &amp; 知晴</Authors>
+    <Version>0.3.14</Version>
+    <Authors>夏小曦 &amp; 知晴 &amp; 砚行</Authors>
   </PropertyGroup>
 </Project>

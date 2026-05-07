@@ -549,6 +549,10 @@ function Show-CodexInstallerUi {
                        Margin="0,6,0,0"
                        Foreground="#94A3B8"
                        FontSize="12"/>
+            <TextBlock Text="MIT 协议 · GitHub 待创建 · Gitee 待创建"
+                       Margin="0,3,0,0"
+                       Foreground="#CBD5E1"
+                       FontSize="11"/>
         </StackPanel>
 
         <Border Grid.Row="1"
@@ -1134,13 +1138,7 @@ function Show-CodexConnectivityUi {
 
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
             <TextBlock Text="测试连通性" FontSize="22" FontWeight="SemiBold" Foreground="#1E293B"/>
-            <TextBlock x:Name="SummaryText"
-                       Text="进入页面后自动逐个检测模型服务和 KEY，不显示完整 KEY。"
-                       Margin="0,6,0,0"
-                       Foreground="#64748B"
-                       FontSize="13"
-                       TextWrapping="Wrap"/>
-            <ProgressBar x:Name="ProgressBar" IsIndeterminate="True" Height="10" Margin="0,14,0,0"/>
+            <ProgressBar x:Name="ProgressBar" IsIndeterminate="True" Height="10" Margin="0,10,0,0"/>
         </StackPanel>
 
         <DataGrid x:Name="ResultGrid"
@@ -1170,26 +1168,35 @@ function Show-CodexConnectivityUi {
             </DataGrid.Columns>
         </DataGrid>
 
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,16,0,0">
-            <Button x:Name="RetestButton"
-                    Content="重新检测"
-                    Width="104"
-                    Height="36"
-                    Margin="0,0,10,0"
-                    Background="#FFFFFF"
-                    BorderBrush="#CBD5E1"
-                    Foreground="#334155"/>
-            <Button x:Name="CloseButton"
-                    Content="关闭"
-                    Width="92"
-                    Height="36"
-                    Background="#2563EB"
-                    BorderBrush="#2563EB"
-                    Foreground="#FFFFFF"/>
-        </StackPanel>
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SummaryText"
+                       Text="正在检测模型服务和 KEY，不显示完整 KEY。"
+                       VerticalAlignment="Center"
+                       Foreground="#64748B"
+                       FontSize="13"
+                       TextWrapping="Wrap"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="RetestButton"
+                        Content="重新检测"
+                        Width="104"
+                        Height="36"
+                        Margin="0,0,10,0"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        Foreground="#334155"/>
+                <Button x:Name="CloseButton"
+                        Content="关闭"
+                        Width="92"
+                        Height="36"
+                        Background="#2563EB"
+                        BorderBrush="#2563EB"
+                        Foreground="#FFFFFF"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
 "@
@@ -1458,6 +1465,10 @@ function Select-CodexProviderWithUi {
                            Margin="0,6,0,0"
                            Foreground="#94A3B8"
                            FontSize="12"/>
+                <TextBlock Text="MIT 协议 · GitHub 待创建 · Gitee 待创建"
+                           Margin="0,3,0,0"
+                           Foreground="#CBD5E1"
+                           FontSize="11"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                 <Button x:Name="InstallButton"
@@ -1560,6 +1571,13 @@ function Select-CodexProviderWithUi {
                     Background="#FFFFFF"
                     BorderBrush="#CBD5E1"
                     Foreground="#334155"/>
+            <TextBlock Grid.Column="1"
+                       Text="自动检测模型服务和 KEY，不显示完整 KEY。"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Center"
+                       Foreground="#94A3B8"
+                       FontSize="12"
+                       TextWrapping="Wrap"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton"
                     Content="取消"

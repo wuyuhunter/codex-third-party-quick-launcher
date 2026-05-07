@@ -1,6 +1,6 @@
 ﻿# Project Structure
 
-`CodexQuickLauncher-Windows-v0.3.13-availability-button-label` is organized as a small portable Windows package.
+This repository is organized as a small portable Windows package.
 
 ## Required
 

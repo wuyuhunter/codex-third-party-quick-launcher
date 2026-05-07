@@ -19,8 +19,8 @@ internal static class Program
             if (!File.Exists(script))
             {
                 MessageBox.Show(
-                    "找不到启动脚本：\n" + script + "\n\n请确认整个 CodexSwitcher-v1.9.0 文件夹完整解压后再运行。",
-                    "Codex 切换器",
+                    "找不到启动脚本：\n" + script + "\n\n请确认整个 Codex 便捷启动器文件夹完整解压后再运行。",
+                    "Codex 便捷启动器",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 return 2;
