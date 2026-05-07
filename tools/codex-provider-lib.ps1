@@ -1,5 +1,5 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.3.17"
+$script:CodexSwitcherVersion = "v0.3.18"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:CodexSwitcherGitHub = "GitHub: 待创建"
 $script:CodexSwitcherGitee = "Gitee: 待创建"

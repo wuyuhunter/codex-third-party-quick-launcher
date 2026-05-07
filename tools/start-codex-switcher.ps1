@@ -31,6 +31,10 @@ $script:CodexSwitcherScriptDir = Split-Path -Parent $script:CodexSwitcherScriptP
 Convert-CodexCatalogKeysToPlaintext
 $script:CodexSwitcherBuild = Get-CodexSwitcherBuildInfo
 $script:CodexSwitcherSettings = Get-CodexSwitcherSettings
+try {
+    $host.UI.RawUI.WindowTitle = "$($script:CodexSwitcherBuild.Product) $($script:CodexSwitcherBuild.Version) | $($script:CodexSwitcherBuild.Authors)"
+} catch {
+}
 
 function Normalize-CodexConfigEntry {
     param([string]$Value)
@@ -228,6 +232,49 @@ function Get-CodexAdvancedComponentStatus {
         default {
             return "未知"
         }
+    }
+}
+
+function Open-CodexLauncherLicense {
+    $root = Split-Path -Parent $script:CodexSwitcherScriptDir
+    $licensePath = Join-Path $root "LICENSE"
+    if (Test-Path -LiteralPath $licensePath) {
+        Start-CodexProcess -FilePath $licensePath
+        return
+    }
+
+    [System.Windows.MessageBox]::Show("找不到内置 MIT 协议文件：`n$licensePath", "Codex 便捷启动器", "OK", "Warning") | Out-Null
+}
+
+function Open-CodexLauncherGitHub {
+    [System.Windows.MessageBox]::Show("GitHub 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
+}
+
+function Open-CodexLauncherGitee {
+    [System.Windows.MessageBox]::Show("Gitee 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
+}
+
+function Register-CodexLauncherLinks {
+    param(
+        [Parameter(Mandatory = $true)]$Window,
+        [string]$LicenseLinkName,
+        [string]$GithubLogoName,
+        [string]$GiteeLogoName
+    )
+
+    $licenseLink = if ($LicenseLinkName) { $Window.FindName($LicenseLinkName) } else { $null }
+    if ($licenseLink) {
+        $licenseLink.Add_MouseLeftButtonUp({ Open-CodexLauncherLicense })
+    }
+
+    $githubLogo = if ($GithubLogoName) { $Window.FindName($GithubLogoName) } else { $null }
+    if ($githubLogo) {
+        $githubLogo.Add_MouseLeftButtonUp({ Open-CodexLauncherGitHub })
+    }
+
+    $giteeLogo = if ($GiteeLogoName) { $Window.FindName($GiteeLogoName) } else { $null }
+    if ($giteeLogo) {
+        $giteeLogo.Add_MouseLeftButtonUp({ Open-CodexLauncherGitee })
     }
 }
 
@@ -1399,6 +1446,135 @@ function Show-CodexConnectivityUi {
     [void]$window.ShowDialog()
 }
 
+function Show-CodexAboutDialog {
+    param($Owner)
+
+    Add-Type -AssemblyName PresentationFramework
+    Add-Type -AssemblyName PresentationCore
+    Add-Type -AssemblyName WindowsBase
+
+    $switcherVersionForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Version)
+    $launcherProductForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Product)
+    $launcherAuthorsForXaml = [System.Security.SecurityElement]::Escape([string]$script:CodexSwitcherBuild.Authors)
+
+    [xml]$xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于 $launcherProductForXaml"
+        Width="520"
+        Height="430"
+        MinWidth="480"
+        MinHeight="380"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#1E293B"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="MinWidth" Value="86"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+            <TextBlock Text="$launcherProductForXaml" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="版本：$switcherVersionForXaml"
+                       Margin="0,8,0,0"
+                       Foreground="#475569"
+                       FontSize="13"/>
+            <TextBlock Text="作者：$launcherAuthorsForXaml"
+                       Margin="0,4,0,0"
+                       Foreground="#475569"
+                       FontSize="13"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="软件初衷"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,8"/>
+            <TextBlock Text="这是一个面向 Windows 用户的 Codex 启动入口，把安装环境、模型服务配置、KEY 选择、模型选择、权限模式和历史会话恢复收在一个干净的面板里。它的目标是让普通用户少碰命令行，同时保留进阶用户需要的可控启动参数。"
+                       Foreground="#475569"
+                       FontSize="13"
+                       LineHeight="20"
+                       TextWrapping="Wrap"/>
+
+            <Border Height="1" Background="#E2E8F0" Margin="0,18,0,14"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="AboutLicenseLink"
+                           Text="MIT 协议"
+                           Foreground="#2563EB"
+                           FontSize="13"
+                           TextDecorations="Underline"
+                           Cursor="Hand"
+                           ToolTip="打开内置 MIT 协议"/>
+                <TextBlock Text="   " FontSize="13"/>
+                <StackPanel x:Name="AboutGithubLogo"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            ToolTip="GitHub 链接待创建">
+                    <Viewbox Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center">
+                        <Canvas Width="16" Height="16">
+                            <Path Fill="#475569"
+                                  Data="M8,0 C3.58,0 0,3.58 0,8 C0,11.54 2.29,14.53 5.47,15.59 C5.87,15.66 6.02,15.42 6.02,15.21 C6.02,15.02 6.01,14.39 6.01,13.72 C4,14.09 3.48,13.23 3.32,12.78 C3.23,12.55 2.84,11.84 2.5,11.65 C2.22,11.5 1.82,11.13 2.49,11.12 C3.12,11.11 3.57,11.7 3.72,11.94 C4.44,13.15 5.59,12.81 6.05,12.6 C6.12,12.08 6.33,11.73 6.56,11.53 C4.78,11.33 2.92,10.64 2.92,7.58 C2.92,6.71 3.23,5.99 3.74,5.43 C3.66,5.23 3.38,4.41 3.82,3.31 C3.82,3.31 4.49,3.1 6.02,4.13 C6.66,3.95 7.34,3.86 8.02,3.86 C8.7,3.86 9.38,3.95 10.02,4.13 C11.55,3.09 12.22,3.31 12.22,3.31 C12.66,4.41 12.38,5.23 12.3,5.43 C12.81,5.99 13.12,6.7 13.12,7.58 C13.12,10.65 11.25,11.33 9.47,11.53 C9.76,11.78 10.01,12.26 10.01,13.01 C10.01,14.08 10,14.94 10,15.21 C10,15.42 10.15,15.67 10.55,15.59 C13.71,14.53 16,11.54 16,8 C16,3.58 12.42,0 8,0 Z"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="GitHub" Margin="5,0,0,0" Foreground="#2563EB" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="   " FontSize="13"/>
+                <StackPanel x:Name="AboutGiteeLogo"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            ToolTip="Gitee 链接待创建">
+                    <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
+                        <Canvas Width="16" Height="16">
+                            <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>
+                            <Path Stroke="#64748B" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="Gitee" Margin="5,0,0,0" Foreground="#2563EB" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button x:Name="AboutCloseButton"
+                    Content="关闭"
+                    Background="#2563EB"
+                    BorderBrush="#2563EB"
+                    Foreground="#FFFFFF"/>
+        </StackPanel>
+    </Grid>
+</Window>
+"@
+
+    $reader = New-Object System.Xml.XmlNodeReader $xaml
+    $window = [Windows.Markup.XamlReader]::Load($reader)
+    if ($Owner) {
+        $window.Owner = $Owner
+    }
+
+    Register-CodexLauncherLinks -Window $window -LicenseLinkName "AboutLicenseLink" -GithubLogoName "AboutGithubLogo" -GiteeLogoName "AboutGiteeLogo"
+    $close = $window.FindName("AboutCloseButton")
+    $close.Add_Click({ $window.Close() })
+
+    [void]$window.ShowDialog()
+}
+
 function Select-CodexProviderWithUi {
     Add-Type -AssemblyName PresentationFramework
     Add-Type -AssemblyName PresentationCore
@@ -1416,11 +1592,11 @@ function Select-CodexProviderWithUi {
     [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="$launcherProductForXaml $switcherVersionForXaml"
+        Title="$launcherProductForXaml"
         Width="860"
-        Height="720"
+        Height="650"
         MinWidth="820"
-        MinHeight="660"
+        MinHeight="600"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="#F4F6F8"
@@ -1461,16 +1637,14 @@ function Select-CodexProviderWithUi {
                            Foreground="#64748B"
                            TextWrapping="Wrap"
                            FontSize="13"/>
-                <TextBlock Text="版本：$switcherVersionForXaml    作者：$launcherAuthorsForXaml"
-                           Margin="0,6,0,0"
-                           Foreground="#94A3B8"
-                           FontSize="12"/>
-                <TextBlock Text="MIT 协议 · GitHub 待创建 · Gitee 待创建"
-                           Margin="0,3,0,0"
-                           Foreground="#CBD5E1"
-                           FontSize="11"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button x:Name="AboutButton"
+                        Content="关于"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        Foreground="#334155"
+                        Margin="0,0,10,0"/>
                 <Button x:Name="InstallButton"
                         Content="安装"
                         Background="#FFFFFF"
@@ -1498,7 +1672,6 @@ function Select-CodexProviderWithUi {
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -1536,23 +1709,8 @@ function Select-CodexProviderWithUi {
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <Border Grid.Row="4"
-                        Grid.ColumnSpan="3"
-                        Background="#F8FAFC"
-                        BorderBrush="#E2E8F0"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16"
-                        Margin="0,2,0,12">
-                    <StackPanel>
-                        <TextBlock x:Name="SummaryText" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="BaseUrlText" Margin="0,8,0,0" Foreground="#64748B" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="KeyText" Margin="0,4,0,0" Foreground="#64748B" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Border>
-
                 <TextBlock x:Name="StatusText"
-                           Grid.Row="5"
+                           Grid.Row="4"
                            Grid.ColumnSpan="3"
                            Foreground="#64748B"
                            TextWrapping="Wrap"/>
@@ -1571,13 +1729,6 @@ function Select-CodexProviderWithUi {
                     Background="#FFFFFF"
                     BorderBrush="#CBD5E1"
                     Foreground="#334155"/>
-            <TextBlock Grid.Column="1"
-                       Text="自动检测模型服务和 KEY，不显示完整 KEY。"
-                       Margin="10,0,0,0"
-                       VerticalAlignment="Center"
-                       Foreground="#94A3B8"
-                       FontSize="12"
-                       TextWrapping="Wrap"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton"
                     Content="取消"
@@ -1612,13 +1763,11 @@ function Select-CodexProviderWithUi {
     $effortCombo = $window.FindName("EffortCombo")
     $permissionModeCombo = $window.FindName("PermissionModeCombo")
     $permissionModeHelpText = $window.FindName("PermissionModeHelpText")
-    $baseUrlText = $window.FindName("BaseUrlText")
-    $keyText = $window.FindName("KeyText")
-    $summaryText = $window.FindName("SummaryText")
     $statusText = $window.FindName("StatusText")
     $ok = $window.FindName("OkButton")
     $resume = $window.FindName("ResumeButton")
     $cancel = $window.FindName("CancelButton")
+    $about = $window.FindName("AboutButton")
     $manage = $window.FindName("ManageButton")
     $install = $window.FindName("InstallButton")
     $connectivity = $window.FindName("ConnectivityButton")
@@ -1667,28 +1816,7 @@ function Select-CodexProviderWithUi {
     function Update-DetailText {
         Update-PermissionModeHelp
         if ($providerCombo.SelectedIndex -lt 0) {
-            $summaryText.Text = "请选择模型服务提供方"
-            $baseUrlText.Text = ""
-            $keyText.Text = ""
             return
-        }
-
-        $selectedProvider = $script:SwitcherProviders[$providerCombo.SelectedIndex]
-        $selectedKey = $null
-        if ($keyCombo.SelectedIndex -ge 0 -and $script:VisibleKeySources.Count -gt 0) {
-            $selectedKey = $script:VisibleKeySources[$keyCombo.SelectedIndex]
-        }
-
-        $selectedModel = if ($modelCombo.SelectedItem) { [string]$modelCombo.SelectedItem } else { [string]$script:CodexSwitcherSettings.defaultModel }
-        $selectedEffort = if ($effortCombo.SelectedItem) { [string]$effortCombo.SelectedItem } else { [string]$script:CodexSwitcherSettings.defaultReasoningEffort }
-        $selectedPermission = Get-CodexPermissionModeLabel (Get-SelectedPermissionMode)
-
-        $summaryText.Text = "即将使用 $($selectedProvider.name)"
-        $baseUrlText.Text = "地址：$($selectedProvider.baseUrl)"
-        $keyText.Text = if ($selectedKey) {
-            "KEY：$($selectedKey.name) [$($selectedKey.prefix)...]    模型：$selectedModel    推理：$selectedEffort    权限：$selectedPermission"
-        } else {
-            "KEY：未配置    模型：$selectedModel    推理：$selectedEffort    权限：$selectedPermission"
         }
     }
 
@@ -1752,13 +1880,13 @@ function Select-CodexProviderWithUi {
     $effortCombo.Add_SelectionChanged({ Update-DetailText })
     $permissionModeCombo.Add_SelectionChanged({ Update-DetailText })
     Update-PermissionModeHelp
+    $about.Add_Click({ Show-CodexAboutDialog -Owner $window })
     $install.Add_Click({
         Show-CodexInstallerUi
         $statusText.Text = "安装状态已返回。可点击「安装」重新检测，或继续配置模型服务和 KEY。"
     })
     $connectivity.Add_Click({
         Show-CodexConnectivityUi
-        $statusText.Text = "连通性检测已返回。"
     })
     $manage.Add_Click({
         $selectedProviderId = if ($providerCombo.SelectedIndex -ge 0) { $script:SwitcherProviders[$providerCombo.SelectedIndex].id } else { $null }
@@ -1909,10 +2037,11 @@ function Start-CodexTerminal {
         return
     }
 
+    $terminalTitle = "$($script:CodexSwitcherBuild.Product) $($script:CodexSwitcherBuild.Version) | $($script:CodexSwitcherBuild.Authors)"
     $terminalArgs = @(
         "-w", "Codex",
         "new-tab",
-        "--title", "codex",
+        "--title", $terminalTitle,
         $shellPath
     )
     $terminalArgs += $scriptArgs
