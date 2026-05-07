@@ -247,11 +247,11 @@ function Open-CodexLauncherLicense {
 }
 
 function Open-CodexLauncherGitHub {
-    [System.Windows.MessageBox]::Show("GitHub 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
+    Start-CodexProcess -FilePath $script:CodexSwitcherBuild.GitHub
 }
 
 function Open-CodexLauncherGitee {
-    [System.Windows.MessageBox]::Show("Gitee 仓库链接待创建。", "Codex 便捷启动器", "OK", "Information") | Out-Null
+    Start-CodexProcess -FilePath $script:CodexSwitcherBuild.Gitee
 }
 
 function Register-CodexLauncherLinks {
@@ -596,7 +596,7 @@ function Show-CodexInstallerUi {
                        Margin="0,6,0,0"
                        Foreground="#94A3B8"
                        FontSize="12"/>
-            <TextBlock Text="MIT 协议 · GitHub 待创建 · Gitee 待创建"
+            <TextBlock Text="MIT 协议 · GitHub · Gitee"
                        Margin="0,3,0,0"
                        Foreground="#CBD5E1"
                        FontSize="11"/>
@@ -1531,7 +1531,7 @@ function Show-CodexAboutDialog {
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Cursor="Hand"
-                            ToolTip="GitHub 链接待创建">
+                            ToolTip="打开 GitHub 仓库">
                     <Viewbox Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center">
                         <Canvas Width="16" Height="16">
                             <Path Fill="#475569"
@@ -1545,7 +1545,7 @@ function Show-CodexAboutDialog {
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Cursor="Hand"
-                            ToolTip="Gitee 链接待创建">
+                            ToolTip="打开 Gitee 仓库">
                     <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
                         <Canvas Width="16" Height="16">
                             <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>

@@ -2,7 +2,7 @@
 
 推荐支持渠道：
 
-1. GitHub Issues：仓库创建后优先使用，方便问题留档和版本跟踪。
-2. Gitee：仓库创建后作为国内镜像和备用浏览入口。
+1. GitHub Issues：https://github.com/wuyuhunter/codex-third-party-quick-launcher/issues
+2. Gitee Issues：https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/issues
 
 请不要在公开 issue、截图或邮件中发送真实 API KEY、个人账号密码、公司内网地址或其他敏感信息。

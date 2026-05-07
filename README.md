@@ -92,9 +92,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-launcher.ps1
 - 开源协议：MIT 协议，内置文本见 `LICENSE`。
 - 中文参考译文：见 `LICENSE.zh-CN.md`，英文 `LICENSE` 是正式许可文本。
 - 项目性质：第三方社区工具。不要使用 OpenAI 官方 Logo、图标、字体或其他品牌资产作为本项目标识。
-- GitHub：待创建。创建仓库后，把 README 里的占位改成真实链接。
-- Gitee：待创建。建议作为国内镜像和备用下载入口，创建后同步到 README。
-- 支持与联系：见 `SUPPORT.md`。仓库创建后优先使用 GitHub Issues 和 Gitee Issues。
+- GitHub：https://github.com/wuyuhunter/codex-third-party-quick-launcher
+- Gitee：https://gitee.com/wuyuhunter/codex-third-party-quick-launcher
+- 支持与联系：见 `SUPPORT.md`。优先使用 GitHub Issues 和 Gitee Issues。
 - 作者：夏小曦、知晴、砚行。
 
 分发前建议检查：

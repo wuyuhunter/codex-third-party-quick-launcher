@@ -7,11 +7,11 @@
 
 $ErrorActionPreference = "Stop"
 $script:LauncherProductName = "Codex 便捷启动器"
-$script:LauncherVersion = "v0.3.18"
+$script:LauncherVersion = "v0.3.19"
 $script:LauncherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:LauncherLicense = "MIT 协议"
-$script:LauncherGitHub = "GitHub: 待创建"
-$script:LauncherGitee = "Gitee: 待创建"
+$script:LauncherGitHub = "GitHub: https://github.com/wuyuhunter/codex-third-party-quick-launcher"
+$script:LauncherGitee = "Gitee: https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:NpmMirror = "https://registry.npmmirror.com"
 $script:NodeMirrorRoots = @(
     "https://npmmirror.com/mirrors/node",

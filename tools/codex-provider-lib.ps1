@@ -1,8 +1,8 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.3.18"
+$script:CodexSwitcherVersion = "v0.3.19"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
-$script:CodexSwitcherGitHub = "GitHub: 待创建"
-$script:CodexSwitcherGitee = "Gitee: 待创建"
+$script:CodexSwitcherGitHub = "https://github.com/wuyuhunter/codex-third-party-quick-launcher"
+$script:CodexSwitcherGitee = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherLicense = "MIT 协议"
 $script:DefaultCodexSwitcherModels = @("gpt-5.5", "gpt-5.4")
 $script:DefaultCodexSwitcherReasoningEfforts = @("high", "xhigh", "medium", "low")
