@@ -1,0 +1,18 @@
+# Runtime output
+logs/
+secrets/
+*.tmp
+
+# Local config may contain API keys after the user saves settings.
+state/codex-quick-launcher-config.json
+state/ai-quick-launcher-config.json
+
+# Legacy migrated config files, also sensitive when present.
+state/codex-provider-catalog.json
+state/codex-provider-selection.json
+state/codex-switcher-settings.json
+
+# Windows and editor noise
+Thumbs.db
+Desktop.ini
+.vscode/

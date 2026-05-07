@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "updatedAt": "2026-05-07T00:00:00+08:00",
+  "settings": {
+    "models": [
+      "gpt-5.5",
+      "gpt-5.4"
+    ],
+    "reasoningEfforts": [
+      "high",
+      "xhigh",
+      "medium",
+      "low"
+    ],
+    "defaultModel": "gpt-5.5",
+    "defaultReasoningEffort": "high"
+  },
+  "catalog": {
+    "version": 1,
+    "updatedAt": "2026-05-07T00:00:00+08:00",
+    "defaultProvider": "openai",
+    "providers": [
+      {
+        "id": "openai",
+        "name": "OpenAI",
+        "baseUrl": "https://api.openai.com/v1",
+        "envKey": "OPENAI_API_KEY",
+        "wireApi": "responses",
+        "requiresOpenAIAuth": true,
+        "defaultKeySource": "",
+        "keys": []
+      }
+    ]
+  },
+  "selection": {
+    "provider": "openai",
+    "keySource": "",
+    "model": "gpt-5.5",
+    "reasoningEffort": "high",
+    "permissionMode": "safe"
+  }
+}

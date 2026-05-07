@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Codex 切换器</AssemblyName>
+    <ApplicationIcon>codex-danger.ico</ApplicationIcon>
+    <Version>1.9.0</Version>
+    <Authors>夏小曦 &amp; 知晴</Authors>
+  </PropertyGroup>
+</Project>
