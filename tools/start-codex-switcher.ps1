@@ -1881,6 +1881,11 @@ function Show-CodexAboutDialog {
                        Margin="0,4,0,0"
                        Foreground="#475569"
                        FontSize="13"/>
+            <TextBlock Text="更新验证标记：v0.5.0 国产模型适配发布版"
+                       Margin="0,8,0,0"
+                       Foreground="#DC2626"
+                       FontWeight="SemiBold"
+                       FontSize="13"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1">

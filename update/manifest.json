@@ -2,7 +2,7 @@
   "version": "0.5.0",
   "displayVersion": "v0.5.0",
   "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/raw/main/releases/v0.5.0/CodexQuickLauncher-v0.5.0.zip",
-  "sha256": "29CCD584D57EE3EE013E634FEFFA04125C10903ECD39E9AA88D3F9E8C8B13C52",
+  "sha256": "AA1E506B91A97FD6DFFEB5E34C33D392892E89EB0823B5B985CED33D4DD6DB30",
   "notesUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/blob/master/CHANGELOG.md",
   "publishedAt": "2026-05-09T02:00:00+08:00",
   "notes": "v0.5.0 domestic-model baseline: keeps the no-config launch path, improves model series/version/depth configuration, adds MiniMax support, and keeps manual update checking inside the About dialog."
