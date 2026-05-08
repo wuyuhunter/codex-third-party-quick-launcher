@@ -4,7 +4,20 @@
   "settings": {
     "models": [
       "gpt-5.5",
-      "gpt-5.4"
+      "gpt-5.4",
+      "gpt-5.4-mini"
+    ],
+    "modelSeries": [
+      {
+        "id": "openai",
+        "name": "OpenAI / GPT",
+        "defaultModel": "gpt-5.5",
+        "models": [
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini"
+        ]
+      }
     ],
     "reasoningEfforts": [
       "high",
@@ -12,6 +25,25 @@
       "medium",
       "low"
     ],
+    "modelReasoningEfforts": {
+      "gpt-5.5": [
+        "high",
+        "xhigh",
+        "medium",
+        "low"
+      ],
+      "gpt-5.4": [
+        "high",
+        "xhigh",
+        "medium",
+        "low"
+      ],
+      "gpt-5.4-mini": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
     "defaultModel": "gpt-5.5",
     "defaultReasoningEffort": "high"
   },
@@ -23,10 +55,21 @@
       {
         "id": "openai",
         "name": "OpenAI",
+        "vendorId": "openai",
+        "vendorIds": [
+          "openai"
+        ],
+        "vendorName": "OpenAI / GPT",
         "baseUrl": "https://api.openai.com/v1",
         "envKey": "OPENAI_API_KEY",
         "wireApi": "responses",
         "requiresOpenAIAuth": true,
+        "models": [
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini"
+        ],
+        "defaultModel": "gpt-5.5",
         "defaultKeySource": "",
         "keys": []
       }

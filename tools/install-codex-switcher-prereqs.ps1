@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 $script:LauncherProductName = "Codex 便捷启动器"
-$script:LauncherVersion = "v0.3.19"
+$script:LauncherVersion = "v0.5.0"
 $script:LauncherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:LauncherLicense = "MIT 协议"
 $script:LauncherGitHub = "GitHub: https://github.com/wuyuhunter/codex-third-party-quick-launcher"

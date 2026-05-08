@@ -84,6 +84,145 @@ function Get-CodexPermissionModeArgs {
     return @("-a", "on-request", "-s", "workspace-write")
 }
 
+function Get-CodexModelMetadataArgs {
+    param([string]$Model)
+
+    $metadata = @{
+        "qwen3.6-plus" = @{ Context = 1000000; Compact = 800000; Output = 65536 }
+        "qwen-plus" = @{ Context = 1000000; Compact = 800000; Output = 32768 }
+        "qwen-max" = @{ Context = 32768; Compact = 26000; Output = 8192 }
+        "deepseek-v4-pro" = @{ Context = 1000000; Compact = 800000; Output = 65536 }
+        "deepseek-v4-flash" = @{ Context = 1000000; Compact = 800000; Output = 32768 }
+        "deepseek-chat" = @{ Context = 65536; Compact = 52000; Output = 8192 }
+        "deepseek-reasoner" = @{ Context = 65536; Compact = 52000; Output = 8192 }
+        "glm-5.1" = @{ Context = 200000; Compact = 160000; Output = 32768 }
+        "glm-4-plus" = @{ Context = 32768; Compact = 26000; Output = 8192 }
+        "kimi-k2.6" = @{ Context = 262144; Compact = 210000; Output = 32768 }
+        "kimi-k2.5" = @{ Context = 262144; Compact = 210000; Output = 32768 }
+        "minimax2.7" = @{ Context = 131072; Compact = 100000; Output = 8192 }
+        "moonshot-v1-auto" = @{ Context = 131072; Compact = 100000; Output = 8192 }
+        "moonshot-v1-32k" = @{ Context = 32768; Compact = 26000; Output = 8192 }
+        "moonshot-v1-8k" = @{ Context = 8192; Compact = 6500; Output = 4096 }
+    }
+
+    $key = ([string]$Model).Trim().ToLowerInvariant()
+    if (-not $metadata.ContainsKey($key)) {
+        return @()
+    }
+
+    $item = $metadata[$key]
+    return @(
+        "-c", "model_context_window=$($item.Context)",
+        "-c", "model_auto_compact_token_limit=$($item.Compact)",
+        "-c", "model_max_output_tokens=$($item.Output)"
+    )
+}
+
+function Get-CodexModelReasoningEfforts {
+    param([string]$Model)
+
+    $modelName = ([string]$Model).Trim()
+    $map = $script:CodexSwitcherSettings.modelReasoningEfforts
+    if ($modelName) {
+        if ($map -is [System.Collections.IDictionary] -and $map.Contains($modelName)) {
+            return @($map[$modelName])
+        }
+        if ($map -and $map.PSObject.Properties.Name -contains $modelName) {
+            return @($map.$modelName)
+        }
+    }
+
+    $value = $modelName.ToLowerInvariant()
+    if ($value -match '^(gpt-|o[0-9]|codex-)') {
+        return @("medium", "high", "xhigh", "low")
+    }
+    if ($value -match '^qwen|^glm-|^kimi-|^moonshot-|^minimax') {
+        return @("medium")
+    }
+    if ($value -match '^deepseek-') {
+        return @("medium")
+    }
+
+    return @($script:CodexSwitcherSettings.reasoningEfforts)
+}
+
+function Get-CodexTransportModel {
+    param([string]$Model)
+
+    $value = ([string]$Model).Trim().ToLowerInvariant()
+    if ($value -match '^qwen|^deepseek-|^glm-|^kimi-|^moonshot-|^minimax') {
+        return "gpt-5.4"
+    }
+    return [string]$Model
+}
+
+function Get-DomesticAdapterProviderSegment {
+    param([string]$Provider)
+
+    switch (([string]$Provider).Trim().ToLowerInvariant()) {
+        "qwen_dashscope" { return "qwen" }
+        "deepseek" { return "deepseek" }
+        "glm_bigmodel" { return "glm" }
+        "kimi_moonshot" { return "kimi" }
+        "minimax" { return "minimax" }
+        default { return "" }
+    }
+}
+
+function Get-DomesticAdapterBaseUrl {
+    param(
+        [string]$Provider,
+        [string]$Model,
+        [int]$Port
+    )
+
+    $segment = Get-DomesticAdapterProviderSegment -Provider $Provider
+    if (-not $segment) {
+        return ""
+    }
+    if ($Port -le 0) {
+        return ""
+    }
+    $escapedModel = [uri]::EscapeDataString(([string]$Model).Trim())
+    return "http://127.0.0.1:$Port/$segment/$escapedModel/v1"
+}
+
+function Get-CodexDefaultModelForProvider {
+    param([string]$Provider)
+
+    $catalogProvider = Get-CatalogProviderById -ProviderName $Provider
+    if ($catalogProvider) {
+        return (Get-CodexProviderDefaultModel -Provider $catalogProvider)
+    }
+
+    switch (([string]$Provider).Trim().ToLowerInvariant()) {
+        "qwen_dashscope" { return "qwen3.6-plus" }
+        "deepseek" { return "deepseek-v4-pro" }
+        "glm_bigmodel" { return "glm-5.1" }
+        "kimi_moonshot" { return "kimi-k2.6" }
+        "minimax" { return "minimax2.7" }
+        "openai" { return "gpt-5.5" }
+        default { return [string]$script:CodexSwitcherSettings.defaultModel }
+    }
+}
+
+function Resolve-CodexReasoningEffortForModel {
+    param(
+        [string]$Model,
+        [string]$ReasoningEffort
+    )
+
+    $allowed = @(Get-CodexModelReasoningEfforts -Model $Model)
+    $candidate = ([string]$ReasoningEffort).Trim()
+    if ($candidate -and $allowed -contains $candidate) {
+        return $candidate
+    }
+    if ($allowed -contains $script:CodexSwitcherSettings.defaultReasoningEffort) {
+        return [string]$script:CodexSwitcherSettings.defaultReasoningEffort
+    }
+    return [string]$allowed[0]
+}
+
 function ConvertTo-CodexProcessArgument {
     param([AllowEmptyString()][string]$Argument)
 
@@ -141,6 +280,235 @@ function Start-CodexProcess {
         Start-Process -FilePath $FilePath -ArgumentList (Join-CodexProcessArguments -Arguments $Arguments) | Out-Null
     } else {
         Start-Process -FilePath $FilePath | Out-Null
+    }
+}
+
+function Test-CodexProcessAlive {
+    param([int]$ProcessId)
+    if ($ProcessId -le 0) { return $false }
+    return [bool](Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
+}
+
+function Test-TcpPortOpen {
+    param([int]$Port)
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+        $connected = $async.AsyncWaitHandle.WaitOne(120, $false)
+        if ($connected) { $client.EndConnect($async) }
+        $client.Close()
+        return $connected
+    } catch {
+        return $false
+    }
+}
+
+function New-DomesticAdapterHealthToken {
+    return "$([guid]::NewGuid().ToString("N"))$([guid]::NewGuid().ToString("N"))"
+}
+
+function Get-DomesticAdapterHealthSignature {
+    param(
+        [string]$Token,
+        [string]$Version,
+        [int]$Port,
+        [string]$Nonce
+    )
+
+    if (-not $Token) { return "" }
+    $payload = "{0}:{1}:{2}:{3}:{4}" -f $Token, "codex-domestic-responses-adapter", $Version, $Port, $Nonce
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+    $hash = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (($hash.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    } finally {
+        $hash.Dispose()
+    }
+}
+
+function Get-DomesticAdapterHealth {
+    param(
+        [int]$Port,
+        [string]$HealthToken
+    )
+    if ($Port -le 0) { return $null }
+    if (-not $HealthToken) { return $null }
+    try {
+        $nonce = [guid]::NewGuid().ToString("N")
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health?nonce=$nonce" -TimeoutSec 2
+        $expected = Get-DomesticAdapterHealthSignature -Token $HealthToken -Version ([string]$health.version) -Port ([int]$health.port) -Nonce $nonce
+        if ($health.ok -and
+            $health.name -eq "codex-domestic-responses-adapter" -and
+            $health.version -eq $script:CodexSwitcherBuild.Version -and
+            $health.nonce -eq $nonce -and
+            $health.signature -eq $expected) {
+            return $health
+        }
+    } catch {
+    }
+    return $null
+}
+
+function Get-DomesticAdapterRuntimePath {
+    return (Join-Path $script:CodexSwitcherRuntimeRoot "state\domestic-adapter-runtime.json")
+}
+
+function Read-DomesticAdapterRuntime {
+    $path = Get-DomesticAdapterRuntimePath
+    if (-not (Test-Path -LiteralPath $path)) {
+        return [pscustomobject]@{ port = 0; pid = 0; healthToken = ""; leases = @(); updatedAt = "" }
+    }
+    try {
+        $runtime = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not ($runtime.PSObject.Properties.Name -contains "leases") -or -not $runtime.leases) {
+            $runtime | Add-Member -NotePropertyName leases -NotePropertyValue @() -Force
+        }
+        if (-not ($runtime.PSObject.Properties.Name -contains "healthToken")) {
+            $runtime | Add-Member -NotePropertyName healthToken -NotePropertyValue "" -Force
+        }
+        return $runtime
+    } catch {
+        return [pscustomobject]@{ port = 0; pid = 0; healthToken = ""; leases = @(); updatedAt = "" }
+    }
+}
+
+function Save-DomesticAdapterRuntime {
+    param($Runtime)
+    $path = Get-DomesticAdapterRuntimePath
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+    $Runtime.updatedAt = Get-Date -Format o
+    $Runtime | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding UTF8
+}
+
+function Get-FreeDomesticAdapterPort {
+    param([string]$HealthToken)
+
+    foreach ($port in 8787..8799) {
+        if ($HealthToken -and (Get-DomesticAdapterHealth -Port $port -HealthToken $HealthToken)) {
+            return $port
+        }
+        if (-not (Test-TcpPortOpen -Port $port)) {
+            return $port
+        }
+    }
+
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse("127.0.0.1"), 0)
+    $listener.Start()
+    $port = $listener.LocalEndpoint.Port
+    $listener.Stop()
+    return $port
+}
+
+function Start-DomesticResponsesAdapter {
+    param(
+        [int]$Port,
+        [string]$HealthToken
+    )
+
+    $adapterScript = Join-Path $script:CodexSwitcherScriptDir "domestic-responses-adapter.js"
+    if (-not (Test-Path -LiteralPath $adapterScript)) {
+        throw "国产模型适配器脚本不存在：$adapterScript"
+    }
+
+    $nodePath = Get-CodexCommandPath -Names @("node.exe", "node")
+    if (-not $nodePath) {
+        throw "未找到 Node.js，无法启动国产模型适配器。"
+    }
+
+    $logDir = Join-Path $script:CodexSwitcherRuntimeRoot "logs"
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    $stdout = Join-Path $logDir "domestic-responses-adapter.out.log"
+    $stderr = Join-Path $logDir "domestic-responses-adapter.err.log"
+    $previousHealthToken = $env:DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN
+    $env:DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN = $HealthToken
+    try {
+        $process = Start-Process -FilePath $nodePath -ArgumentList (Join-CodexProcessArguments -Arguments @($adapterScript, "--port", ([string]$Port))) -WorkingDirectory $script:CodexSwitcherRuntimeRoot -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
+    } finally {
+        if ($null -eq $previousHealthToken) {
+            Remove-Item Env:\DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN -ErrorAction SilentlyContinue
+        } else {
+            $env:DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN = $previousHealthToken
+        }
+    }
+
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        Start-Sleep -Milliseconds 250
+        $health = Get-DomesticAdapterHealth -Port $Port -HealthToken $HealthToken
+        if ($health) {
+            return [pscustomobject]@{ Port = $Port; Pid = [int]$process.Id }
+        }
+    }
+
+    throw "国产模型适配器启动失败，请查看 logs\\domestic-responses-adapter.err.log。"
+}
+
+function Acquire-DomesticAdapterLease {
+    $runtime = Read-DomesticAdapterRuntime
+    $health = $null
+    $healthToken = [string]$runtime.healthToken
+    if (-not $healthToken) {
+        $healthToken = New-DomesticAdapterHealthToken
+    }
+    if ($runtime.port -and $healthToken) {
+        $health = Get-DomesticAdapterHealth -Port ([int]$runtime.port) -HealthToken $healthToken
+    }
+
+    if ($health) {
+        $port = [int]$health.port
+        $adapterPid = [int]$health.pid
+    } else {
+        $healthToken = New-DomesticAdapterHealthToken
+        $port = Get-FreeDomesticAdapterPort -HealthToken $healthToken
+        $started = Start-DomesticResponsesAdapter -Port $port -HealthToken $healthToken
+        $port = [int]$started.Port
+        $adapterPid = [int]$started.Pid
+    }
+
+    $leaseId = [guid]::NewGuid().ToString("N")
+    $leases = @($runtime.leases | Where-Object { Test-CodexProcessAlive -ProcessId ([int]$_.ownerPid) })
+    $leases += [pscustomobject]@{
+        id = $leaseId
+        ownerPid = $PID
+        acquiredAt = (Get-Date -Format o)
+    }
+    $runtime = [pscustomobject]@{
+        name = "codex-domestic-responses-adapter"
+        port = $port
+        pid = $adapterPid
+        healthToken = $healthToken
+        leases = @($leases)
+        updatedAt = (Get-Date -Format o)
+    }
+    Save-DomesticAdapterRuntime -Runtime $runtime
+
+    return [pscustomobject]@{ LeaseId = $leaseId; Port = $port; Pid = $adapterPid }
+}
+
+function Release-DomesticAdapterLease {
+    param([string]$LeaseId)
+    if (-not $LeaseId) { return }
+
+    $runtime = Read-DomesticAdapterRuntime
+    $leases = @($runtime.leases | Where-Object {
+        $_.id -ne $LeaseId -and (Test-CodexProcessAlive -ProcessId ([int]$_.ownerPid))
+    })
+    $runtime.leases = @($leases)
+    Save-DomesticAdapterRuntime -Runtime $runtime
+
+    if ($leases.Count -eq 0) {
+        Start-Sleep -Seconds 2
+        $runtime = Read-DomesticAdapterRuntime
+        $remaining = @($runtime.leases | Where-Object { Test-CodexProcessAlive -ProcessId ([int]$_.ownerPid) })
+        if ($remaining.Count -eq 0) {
+            $health = Get-DomesticAdapterHealth -Port ([int]$runtime.port) -HealthToken ([string]$runtime.healthToken)
+            if ($health -and $health.pid) {
+                Stop-Process -Id ([int]$health.pid) -Force -ErrorAction SilentlyContinue
+            }
+            $runtime.leases = @()
+            $runtime.pid = 0
+            $runtime.healthToken = ""
+            Save-DomesticAdapterRuntime -Runtime $runtime
+        }
     }
 }
 
@@ -1258,11 +1626,12 @@ function Show-CodexConnectivityUi {
 
     $rows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
     foreach ($target in $targets) {
+        $targetModel = Get-CodexDefaultModelForProvider -Provider $target.ProviderId
         $rows.Add([pscustomobject]@{
             Status = "等待"
             ProviderName = $target.ProviderName
             KeyLabel = "$($target.KeyName) [$($target.KeyPrefix)...]"
-            Model = $script:CodexSwitcherSettings.defaultModel
+            Model = $targetModel
             HttpStatus = ""
             DurationMs = ""
             Message = if ($target.ResolveError) { "KEY 解析失败：$($target.ResolveError)" } else { "等待检测" }
@@ -1333,11 +1702,19 @@ function Show-CodexConnectivityUi {
             $progress.IsIndeterminate = $false
             $summary.Text = "检测完成：可用 $okCount 个，异常 $failCount 个。"
             $retest.IsEnabled = $true
+            if ($script:ConnectivityAdapterLease) {
+                Release-DomesticAdapterLease -LeaseId $script:ConnectivityAdapterLease.LeaseId
+                $script:ConnectivityAdapterLease = $null
+            }
         }
     })
 
     function Start-ConnectivityRun {
         if ($script:ConnectivityJobs -and $script:ConnectivityJobs.Count -gt 0) { return }
+        $domesticTargets = @($targets | Where-Object { Get-DomesticAdapterProviderSegment -Provider $_.ProviderId })
+        if ($domesticTargets.Count -gt 0 -and -not $script:ConnectivityAdapterLease) {
+            $script:ConnectivityAdapterLease = Acquire-DomesticAdapterLease
+        }
         $retest.IsEnabled = $false
         $progress.IsIndeterminate = $true
         $summary.Text = "正在并行检测 provider / KEY..."
@@ -1351,16 +1728,17 @@ function Show-CodexConnectivityUi {
 
         $script:ConnectivityJobs = @{}
         foreach ($target in $targets) {
+            $targetModel = Get-CodexDefaultModelForProvider -Provider $target.ProviderId
             $jobTarget = [pscustomobject]@{
                 ProviderId = $target.ProviderId
                 ProviderName = $target.ProviderName
-                BaseUrl = $target.BaseUrl
+                BaseUrl = $(if ($script:ConnectivityAdapterLease -and (Get-DomesticAdapterProviderSegment -Provider $target.ProviderId)) { Get-DomesticAdapterBaseUrl -Provider $target.ProviderId -Model $targetModel -Port $script:ConnectivityAdapterLease.Port } else { $target.BaseUrl })
                 KeyId = $target.KeyId
                 KeyName = $target.KeyName
                 KeyPrefix = $target.KeyPrefix
                 ApiKey = $target.ApiKey
                 ResolveError = $target.ResolveError
-                Model = $script:CodexSwitcherSettings.defaultModel
+                Model = $targetModel
             }
             $jobKey = "$($jobTarget.ProviderId)|$($jobTarget.KeyId)"
 
@@ -1441,6 +1819,10 @@ function Show-CodexConnectivityUi {
             }
             $script:ConnectivityJobs = @{}
         }
+        if ($script:ConnectivityAdapterLease) {
+            Release-DomesticAdapterLease -LeaseId $script:ConnectivityAdapterLease.LeaseId
+            $script:ConnectivityAdapterLease = $null
+        }
     })
 
     [void]$window.ShowDialog()
@@ -1497,7 +1879,7 @@ function Show-CodexAboutDialog {
                        Margin="0,4,0,0"
                        Foreground="#475569"
                        FontSize="13"/>
-        </StackPanel>
+          </StackPanel>
 
         <StackPanel Grid.Row="1">
             <TextBlock Text="软件说明"
@@ -1516,12 +1898,17 @@ function Show-CodexAboutDialog {
                        LineHeight="18"
                        TextWrapping="Wrap"/>
 
-            <Border Height="1" Background="#E2E8F0" Margin="0,18,0,14"/>
+        </StackPanel>
 
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Grid Grid.Row="2" Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
                 <TextBlock x:Name="AboutLicenseLink"
                            Text="MIT 协议"
-                           Foreground="#2563EB"
+                           Foreground="#111827"
                            FontSize="13"
                            TextDecorations="Underline"
                            Cursor="Hand"
@@ -1534,11 +1921,11 @@ function Show-CodexAboutDialog {
                             ToolTip="打开 GitHub 仓库">
                     <Viewbox Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center">
                         <Canvas Width="16" Height="16">
-                            <Path Fill="#475569"
+                            <Path Fill="#111827"
                                   Data="M8,0 C3.58,0 0,3.58 0,8 C0,11.54 2.29,14.53 5.47,15.59 C5.87,15.66 6.02,15.42 6.02,15.21 C6.02,15.02 6.01,14.39 6.01,13.72 C4,14.09 3.48,13.23 3.32,12.78 C3.23,12.55 2.84,11.84 2.5,11.65 C2.22,11.5 1.82,11.13 2.49,11.12 C3.12,11.11 3.57,11.7 3.72,11.94 C4.44,13.15 5.59,12.81 6.05,12.6 C6.12,12.08 6.33,11.73 6.56,11.53 C4.78,11.33 2.92,10.64 2.92,7.58 C2.92,6.71 3.23,5.99 3.74,5.43 C3.66,5.23 3.38,4.41 3.82,3.31 C3.82,3.31 4.49,3.1 6.02,4.13 C6.66,3.95 7.34,3.86 8.02,3.86 C8.7,3.86 9.38,3.95 10.02,4.13 C11.55,3.09 12.22,3.31 12.22,3.31 C12.66,4.41 12.38,5.23 12.3,5.43 C12.81,5.99 13.12,6.7 13.12,7.58 C13.12,10.65 11.25,11.33 9.47,11.53 C9.76,11.78 10.01,12.26 10.01,13.01 C10.01,14.08 10,14.94 10,15.21 C10,15.42 10.15,15.67 10.55,15.59 C13.71,14.53 16,11.54 16,8 C16,3.58 12.42,0 8,0 Z"/>
                         </Canvas>
                     </Viewbox>
-                    <TextBlock Text="GitHub" Margin="5,0,0,0" Foreground="#2563EB" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
+                    <TextBlock Text="GitHub" Margin="5,0,0,0" Foreground="#111827" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Text="   " FontSize="13"/>
                 <StackPanel x:Name="AboutGiteeLogo"
@@ -1548,22 +1935,28 @@ function Show-CodexAboutDialog {
                             ToolTip="打开 Gitee 仓库">
                     <Viewbox Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center">
                         <Canvas Width="16" Height="16">
-                            <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#64748B" StrokeThickness="1.45"/>
-                            <Path Stroke="#64748B" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
+                            <Ellipse Width="11.5" Height="11.5" Canvas.Left="2.25" Canvas.Top="2.25" Stroke="#111827" StrokeThickness="1.45"/>
+                            <Path Stroke="#111827" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M8.2,8 L12.8,8 L12.8,11.2"/>
                         </Canvas>
                     </Viewbox>
-                    <TextBlock Text="Gitee" Margin="5,0,0,0" Foreground="#2563EB" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
+                    <TextBlock Text="Gitee" Margin="5,0,0,0" Foreground="#111827" FontSize="13" TextDecorations="Underline" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
-        </StackPanel>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button x:Name="AboutCloseButton"
-                    Content="关闭"
-                    Background="#2563EB"
-                    BorderBrush="#2563EB"
-                    Foreground="#FFFFFF"/>
-        </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="AboutUpdateButton"
+                        Content="检查更新"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        Foreground="#334155"
+                        Margin="0,0,8,0"
+                        ToolTip="手动检查新版本，适合熟练用户"/>
+                <Button x:Name="AboutCloseButton"
+                        Content="关闭"
+                        Background="#2563EB"
+                        BorderBrush="#2563EB"
+                        Foreground="#FFFFFF"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
 "@
@@ -1575,7 +1968,17 @@ function Show-CodexAboutDialog {
     }
 
     Register-CodexLauncherLinks -Window $window -LicenseLinkName "AboutLicenseLink" -GithubLogoName "AboutGithubLogo" -GiteeLogoName "AboutGiteeLogo"
+    $update = $window.FindName("AboutUpdateButton")
     $close = $window.FindName("AboutCloseButton")
+    $update.Add_Click({
+        $result = Invoke-CodexSwitcherUpdateCheck -Owner $window
+        if ($result -and $result.Status -eq "Started") {
+            if ($window.Owner) {
+                $window.Owner.Close()
+            }
+            $window.Close()
+        }
+    })
     $close.Add_Click({ $window.Close() })
 
     [void]$window.ShowDialog()
@@ -1701,7 +2104,7 @@ function Select-CodexProviderWithUi {
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,12">
-                    <TextBlock Text="推理模式" FontSize="13" FontWeight="SemiBold" Foreground="#475569"/>
+                    <TextBlock Text="推理深度" FontSize="13" FontWeight="SemiBold" Foreground="#475569"/>
                     <ComboBox x:Name="EffortCombo" Margin="0,7,0,0"/>
                 </StackPanel>
 
@@ -1779,28 +2182,8 @@ function Select-CodexProviderWithUi {
     $connectivity = $window.FindName("ConnectivityButton")
     $currentSelection = Get-PersistedCodexSelection
 
-    foreach ($item in @($script:CodexSwitcherSettings.models)) {
-        [void]$modelCombo.Items.Add($item)
-    }
-    foreach ($item in @($script:CodexSwitcherSettings.reasoningEfforts)) {
-        [void]$effortCombo.Items.Add($item)
-    }
     [void]$permissionModeCombo.Items.Add("安全模式")
     [void]$permissionModeCombo.Items.Add("全权限模式 (YOLO)")
-
-    $preferredModel = $script:CodexSwitcherSettings.defaultModel
-    if ($modelCombo.Items.Contains($preferredModel)) {
-        $modelCombo.SelectedItem = $preferredModel
-    } else {
-        $modelCombo.SelectedItem = $script:CodexSwitcherSettings.defaultModel
-    }
-
-    $preferredReasoningEffort = $script:CodexSwitcherSettings.defaultReasoningEffort
-    if ($effortCombo.Items.Contains($preferredReasoningEffort)) {
-        $effortCombo.SelectedItem = $preferredReasoningEffort
-    } else {
-        $effortCombo.SelectedItem = $script:CodexSwitcherSettings.defaultReasoningEffort
-    }
 
     $preferredPermissionMode = $script:DefaultCodexSwitcherPermissionMode
     if ($currentSelection -and $currentSelection.PermissionMode) {
@@ -1819,11 +2202,53 @@ function Select-CodexProviderWithUi {
         $permissionModeHelpText.Text = Get-CodexPermissionModeDescription (Get-SelectedPermissionMode)
     }
 
+    function Refresh-ReasoningEfforts {
+        param([string]$PreferredReasoningEffort)
+
+        $model = [string]$modelCombo.SelectedItem
+        $allowed = @(Get-CodexModelReasoningEfforts -Model $model)
+        $target = Resolve-CodexReasoningEffortForModel -Model $model -ReasoningEffort $PreferredReasoningEffort
+        $effortCombo.Items.Clear()
+        foreach ($item in $allowed) {
+            [void]$effortCombo.Items.Add($item)
+        }
+        if ($target -and $effortCombo.Items.Contains($target)) {
+            $effortCombo.SelectedItem = $target
+        } elseif ($effortCombo.Items.Count -gt 0) {
+            $effortCombo.SelectedIndex = 0
+        }
+    }
+
     function Update-DetailText {
         Update-PermissionModeHelp
         if ($providerCombo.SelectedIndex -lt 0) {
             return
         }
+    }
+
+    function Refresh-ModelList {
+        param([string]$PreferredModel)
+
+        $modelCombo.Items.Clear()
+        if ($providerCombo.SelectedIndex -lt 0 -or $providerCombo.SelectedIndex -ge $script:SwitcherProviders.Count) {
+            foreach ($item in @($script:CodexSwitcherSettings.models)) {
+                [void]$modelCombo.Items.Add($item)
+            }
+        } else {
+            $provider = $script:SwitcherProviders[$providerCombo.SelectedIndex]
+            foreach ($item in @(Get-CodexProviderModels -Provider $provider)) {
+                [void]$modelCombo.Items.Add($item)
+            }
+        }
+
+        if ($PreferredModel -and $modelCombo.Items.Contains($PreferredModel)) {
+            $modelCombo.SelectedItem = $PreferredModel
+        } elseif ($providerCombo.SelectedIndex -ge 0 -and $providerCombo.SelectedIndex -lt $script:SwitcherProviders.Count) {
+            $modelCombo.SelectedItem = Get-CodexProviderDefaultModel -Provider $script:SwitcherProviders[$providerCombo.SelectedIndex]
+        } elseif ($modelCombo.Items.Count -gt 0) {
+            $modelCombo.SelectedIndex = 0
+        }
+        Refresh-ReasoningEfforts -PreferredReasoningEffort ([string]$effortCombo.SelectedItem)
     }
 
     function Refresh-KeySources {
@@ -1860,7 +2285,7 @@ function Select-CodexProviderWithUi {
 
         $providerCombo.Items.Clear()
         foreach ($p in $script:SwitcherProviders) {
-            [void]$providerCombo.Items.Add("$($p.name)  |  $($p.baseUrl)")
+            [void]$providerCombo.Items.Add("$($p.name)  |  $($p.vendorName)")
         }
 
         if ($providerCombo.Items.Count -eq 0) {
@@ -1877,12 +2302,20 @@ function Select-CodexProviderWithUi {
             }
         }
         $providerCombo.SelectedIndex = $selectedProviderIndex
+        $preferredModel = if ($currentSelection -and $currentSelection.Model) { [string]$currentSelection.Model } else { "" }
+        Refresh-ModelList -PreferredModel $preferredModel
         Refresh-KeySources -PreferredKeySource $PreferredKeySource
     }
 
-    $providerCombo.Add_SelectionChanged({ Refresh-KeySources -PreferredKeySource $null })
+    $providerCombo.Add_SelectionChanged({
+        Refresh-ModelList -PreferredModel ([string]$modelCombo.SelectedItem)
+        Refresh-KeySources -PreferredKeySource $null
+    })
     $keyCombo.Add_SelectionChanged({ Update-DetailText })
-    $modelCombo.Add_SelectionChanged({ Update-DetailText })
+    $modelCombo.Add_SelectionChanged({
+        Refresh-ReasoningEfforts -PreferredReasoningEffort ([string]$effortCombo.SelectedItem)
+        Update-DetailText
+    })
     $effortCombo.Add_SelectionChanged({ Update-DetailText })
     $permissionModeCombo.Add_SelectionChanged({ Update-DetailText })
     Update-PermissionModeHelp
@@ -1900,28 +2333,9 @@ function Select-CodexProviderWithUi {
         $script:SwitcherProviders = @(Get-CatalogProviders)
         $script:CodexSwitcherSettings = Get-CodexSwitcherSettings
         $selectedModel = [string]$modelCombo.SelectedItem
-        $modelCombo.Items.Clear()
-        foreach ($item in @($script:CodexSwitcherSettings.models)) {
-            [void]$modelCombo.Items.Add($item)
-        }
-        if ($selectedModel -and $modelCombo.Items.Contains($selectedModel)) {
-            $modelCombo.SelectedItem = $selectedModel
-        } else {
-            $modelCombo.SelectedItem = $script:CodexSwitcherSettings.defaultModel
-        }
-
-        $selectedReasoningEffort = [string]$effortCombo.SelectedItem
-        $effortCombo.Items.Clear()
-        foreach ($item in @($script:CodexSwitcherSettings.reasoningEfforts)) {
-            [void]$effortCombo.Items.Add($item)
-        }
-        if ($selectedReasoningEffort -and $effortCombo.Items.Contains($selectedReasoningEffort)) {
-            $effortCombo.SelectedItem = $selectedReasoningEffort
-        } else {
-            $effortCombo.SelectedItem = $script:CodexSwitcherSettings.defaultReasoningEffort
-        }
 
         Refresh-ProviderList -PreferredProvider $selectedProviderId -PreferredKeySource $null
+        Refresh-ModelList -PreferredModel $selectedModel
         $statusText.Text = "配置内容已刷新。"
     })
 
@@ -1972,6 +2386,7 @@ function Select-CodexProviderWithUi {
     })
 
     $initialProvider = Get-DefaultCodexCatalogProviderId
+    Refresh-ReasoningEfforts -PreferredReasoningEffort $script:CodexSwitcherSettings.defaultReasoningEffort
     Refresh-ProviderList -PreferredProvider $initialProvider -PreferredKeySource $null
 
     if ($window.ShowDialog() -ne $true) {
@@ -2086,7 +2501,7 @@ if ($NoUi) {
                 $selection = [pscustomobject]@{
                     Provider = $defaultProvider.id
                     KeySource = Get-DefaultKeySourceForProvider -Provider $defaultProvider
-                    Model = $script:CodexSwitcherSettings.defaultModel
+                    Model = Get-CodexProviderDefaultModel -Provider $defaultProvider
                     ReasoningEffort = $script:CodexSwitcherSettings.defaultReasoningEffort
                     PermissionMode = $script:DefaultCodexSwitcherPermissionMode
                 }
@@ -2122,16 +2537,46 @@ if ($NoUi) {
     }
 }
 
-if (-not $Model) { $Model = $script:CodexSwitcherSettings.defaultModel }
+if (-not $Model) {
+    $selectedProviderForModel = Get-CatalogProviderById -ProviderName $Provider
+    if ($selectedProviderForModel) {
+        $Model = Get-CodexProviderDefaultModel -Provider $selectedProviderForModel
+    } else {
+        $Model = $script:CodexSwitcherSettings.defaultModel
+    }
+} else {
+    $selectedProviderForModel = Get-CatalogProviderById -ProviderName $Provider
+    if ($selectedProviderForModel) {
+        $resolvedModelForProvider = Resolve-CodexModelForProvider -Provider $selectedProviderForModel -Model $Model
+        if ($resolvedModelForProvider -ne $Model) {
+            Write-Host "Model '$Model' is not available for provider '$Provider'; using '$resolvedModelForProvider'." -ForegroundColor Yellow
+            $Model = $resolvedModelForProvider
+        }
+    }
+}
 if (-not $ReasoningEffort) { $ReasoningEffort = $script:CodexSwitcherSettings.defaultReasoningEffort }
 if (-not $PermissionMode) { $PermissionMode = $script:DefaultCodexSwitcherPermissionMode }
+$ReasoningEffort = Resolve-CodexReasoningEffortForModel -Model $Model -ReasoningEffort $ReasoningEffort
 $PermissionMode = Normalize-CodexPermissionMode $PermissionMode
 
 $resolved = Set-CodexSelectionEnvironment -ProviderName $Provider -KeySourceId $KeySource -Model $Model -ReasoningEffort $ReasoningEffort -PermissionMode $PermissionMode -Persist
+$transportModel = Get-CodexTransportModel -Model $Model
+$adapterLease = $null
+$adapterBaseUrl = ""
+if ($InTerminal -and (Get-DomesticAdapterProviderSegment -Provider $resolved.Provider)) {
+    $adapterLease = Acquire-DomesticAdapterLease
+    $adapterBaseUrl = Get-DomesticAdapterBaseUrl -Provider $resolved.Provider -Model $Model -Port $adapterLease.Port
+}
 
 Write-Host "Codex provider: $($resolved.Provider) <$($resolved.BaseUrl)>" -ForegroundColor Cyan
 Write-Host "Key: $($resolved.EnvKey) prefix $($resolved.KeyPrefix)..." -ForegroundColor DarkGray
 Write-Host "Model: $Model, reasoning: $ReasoningEffort" -ForegroundColor DarkGray
+if ($transportModel -ne $Model) {
+    Write-Host "Transport model: $transportModel -> upstream $Model" -ForegroundColor DarkGray
+    if ($adapterLease) {
+        Write-Host "Adapter: http://127.0.0.1:$($adapterLease.Port) lease $($adapterLease.LeaseId.Substring(0, 8))" -ForegroundColor DarkGray
+    }
+}
 Write-Host "Permission mode: $(Get-CodexPermissionModeLabel $PermissionMode)" -ForegroundColor DarkGray
 Write-Host "Launcher: $($script:CodexSwitcherBuild.Version), authors: $($script:CodexSwitcherBuild.Authors)" -ForegroundColor DarkGray
 if ($ResumeHistory) {
@@ -2151,14 +2596,10 @@ if (-not $InTerminal) {
 
 $providerArgs = @()
 $resumeProviderOverrideArgs = @()
-if ($resolved.ProfileName) {
-    $providerArgs += @("--profile", $resolved.ProfileName)
-    $resumeProviderOverrideArgs += @("--profile", $resolved.ProfileName)
-    $resumeProviderOverrideArgs += @("-c", "model_provider=`"$($resolved.Provider)`"")
-} else {
-    $providerArgs += $resolved.ConfigArgs
-    $resumeProviderOverrideArgs += $resolved.ConfigArgs
-}
+$effectiveProviderBaseUrl = if ($adapterBaseUrl) { $adapterBaseUrl } else { $resolved.BaseUrl }
+$effectiveProviderArgs = Get-CodexProviderConfigArgs -ProviderId $resolved.Provider -Name $resolved.ProviderName -BaseUrl $effectiveProviderBaseUrl -EnvKey $resolved.EnvKey -WireApi "responses"
+$providerArgs += $effectiveProviderArgs
+$resumeProviderOverrideArgs += $effectiveProviderArgs
 $providerArgs += Get-CodexPermissionModeArgs $PermissionMode
 
 $forwardedArgs = @()
@@ -2176,8 +2617,20 @@ if ($ResumeHistory) {
     $forwardedArgs += $providerArgs
 }
 
+$hasExplicitCodexCwd = $false
+foreach ($arg in @($CodexArgs)) {
+    if ($arg -eq "-C" -or $arg -eq "--cd") {
+        $hasExplicitCodexCwd = $true
+        break
+    }
+}
+if (-not $ResumeHistory -and -not $hasExplicitCodexCwd -and $env:USERPROFILE) {
+    $forwardedArgs += @("-C", $env:USERPROFILE)
+}
+
 if ($Model) {
-    $forwardedArgs += @("-m", $Model)
+    $forwardedArgs += @("-m", $transportModel)
+    $forwardedArgs += Get-CodexModelMetadataArgs -Model $Model
 }
 $forwardedArgs += @("-c", "model_reasoning_effort=$ReasoningEffort")
 foreach ($entry in $Config) {
@@ -2190,10 +2643,25 @@ if ($PrintCodexArgs) {
         CodexExe = "$env:APPDATA\npm\codex.ps1"
         Args = $forwardedArgs
     } | ConvertTo-Json -Depth 5
+    if ($adapterLease) {
+        Release-DomesticAdapterLease -LeaseId $adapterLease.LeaseId
+    }
     return
 }
 
-& "$env:APPDATA\npm\codex.ps1" @forwardedArgs
+$codexExitCode = 0
+try {
+    & "$env:APPDATA\npm\codex.ps1" @forwardedArgs
+    $codexExitCode = $LASTEXITCODE
+} finally {
+    if ($adapterLease) {
+        Release-DomesticAdapterLease -LeaseId $adapterLease.LeaseId
+    }
+}
+
+if ($codexExitCode -ne 0) {
+    Write-Host "Codex exited with code $codexExitCode." -ForegroundColor Yellow
+}
 
 
 

@@ -4,6 +4,9 @@ logs/
 secrets/
 *.tmp
 *.zip
+!releases/
+!releases/**
+!releases/**/*.zip
 
 # Build output
 artifacts/
