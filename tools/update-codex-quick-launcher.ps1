@@ -111,7 +111,10 @@ try {
         $parent = Get-Process -Id $ParentProcessId -ErrorAction SilentlyContinue
         if ($parent) {
             Write-Step "等待当前启动器退出：PID $ParentProcessId"
-            Wait-Process -Id $ParentProcessId -Timeout 120 -ErrorAction SilentlyContinue
+            Wait-Process -Id $ParentProcessId -Timeout 5 -ErrorAction SilentlyContinue
+            if (Get-Process -Id $ParentProcessId -ErrorAction SilentlyContinue) {
+                Write-Step "启动器仍在运行，继续尝试更新。若文件被占用，更新器会自动报错并保留日志。"
+            }
         }
     }
 

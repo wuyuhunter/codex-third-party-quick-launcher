@@ -378,7 +378,13 @@ function Read-CodexSwitcherTextResource {
         return Get-Content -LiteralPath $fileUri.LocalPath -Raw -Encoding UTF8
     }
     if ($value -match '^https?://') {
-        return (Invoke-WebRequest -Uri $value -UseBasicParsing -TimeoutSec 30).Content
+        $tempFile = Join-Path ([System.IO.Path]::GetTempPath()) ("CodexQuickLauncherManifest-{0}.json" -f ([guid]::NewGuid().ToString("N")))
+        try {
+            Invoke-WebRequest -Uri $value -OutFile $tempFile -UseBasicParsing -TimeoutSec 30
+            return Get-Content -LiteralPath $tempFile -Raw -Encoding UTF8
+        } finally {
+            Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+        }
     }
     if (Test-Path -LiteralPath $value) {
         return Get-Content -LiteralPath $value -Raw -Encoding UTF8
@@ -490,7 +496,7 @@ function Start-CodexSwitcherUpdater {
         "-PackagePath", $PackagePath,
         "-InstallRoot", $installRoot,
         "-ExpectedSha256", $ExpectedSha256,
-        "-ParentProcessId", ([string][System.Diagnostics.Process]::GetCurrentProcess().Id)
+        "-ParentProcessId", "0"
     )
     if (Test-Path -LiteralPath $launcherExe) {
         $args += @("-RelaunchPath", $launcherExe)
@@ -569,7 +575,6 @@ function Invoke-CodexSwitcherUpdateCheck {
         }
 
         Start-CodexSwitcherUpdater -PackagePath $packagePath -ExpectedSha256 $sha256
-        Show-CodexSwitcherMessage -Owner $Owner -Title "检查更新" -Message "更新包已下载并校验通过。`n`n更新器已经启动，当前窗口将关闭；更新完成后会尝试重新打开启动器。" -Icon "Information"
         return [pscustomobject]@{ Status = "Started"; Version = $latestVersionText; PackagePath = $packagePath }
     } catch {
         $message = (($_ | Out-String).Trim())
