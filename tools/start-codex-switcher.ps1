@@ -201,8 +201,6 @@ function Get-CodexDefaultModelForProvider {
         "glm_bigmodel" { return "glm-5.1" }
         "kimi_moonshot" { return "kimi-k2.6" }
         "minimax" { return "minimax2.7" }
-        "yanling" { return "gpt-5.5" }
-        "ciii_next" { return "gpt-5.5" }
         "openai" { return "gpt-5.5" }
         default { return [string]$script:CodexSwitcherSettings.defaultModel }
     }
@@ -1881,12 +1879,7 @@ function Show-CodexAboutDialog {
                        Margin="0,4,0,0"
                        Foreground="#475569"
                        FontSize="13"/>
-            <TextBlock Text="更新验证标记：v0.5.0 国产模型适配发布版"
-                       Margin="0,8,0,0"
-                       Foreground="#DC2626"
-                       FontWeight="SemiBold"
-                       FontSize="13"/>
-        </StackPanel>
+          </StackPanel>
 
         <StackPanel Grid.Row="1">
             <TextBlock Text="软件说明"

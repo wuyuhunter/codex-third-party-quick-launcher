@@ -5,9 +5,9 @@
 - 将当前国产模型适配实验线升级为 `v0.5.0` 发布基准。
 - 保留 no-config 路线：provider 定义、adapter 地址、KEY 选择和模型参数继续通过便携包 state 与进程级参数传入，不依赖 `~/.codex/config.toml`。
 - 保留“模型系列 -> 模型版本 -> 推理深度”配置结构，聚合平台可在同一 provider 下勾选多个模型系列。
-- 保留 MiniMax、Qwen、DeepSeek、GLM、Kimi 适配器路径，以及 `yanling`、`ciii_next`、`xiaolan` 对照 provider。
+- 保留 MiniMax、Qwen、DeepSeek、GLM、Kimi 适配器路径，以及用户自定义 OpenAI-compatible 对照 provider。
 - “检查更新”继续只放在“关于”窗口中，不自动检查，避免新手频繁更新。
-- “关于”窗口新增红色“更新验证标记：v0.5.0 国产模型适配发布版”，方便从旧版本升级后肉眼确认已经更新成功。
+- 移除测试阶段用于肉眼确认升级的显眼更新标记，正式版“关于”窗口只保留常规版本信息。
 - 发布前执行脱敏、全局配置依赖、adapter、打包和本地升级路径检查。
 
 ## v0.4.3-update-checker
@@ -55,7 +55,7 @@
 - 新增 `minimax` provider，默认模型 `minimax2.7`，通过本机 adapter 转译到上游 `MiniMax-M2.7` Chat Completions。
 - MiniMax 启动时同样不写 `~/.codex/config.toml`，Codex 侧继续使用临时 `-c model_providers.<id>.*` 参数和本机 adapter 地址。
 - MiniMax adapter 对 Codex 的多段 system message 做合并，并清理上游返回中的 `<think>...</think>` 包裹，避免 `MiniMax-M2.7` 因 chat setting 或思考标签污染导致 smoke test 失败。
-- 连通性测试默认模型补齐 `yanling`、`ciii_next`、`OpenAI/小蓝` 的 `gpt-5.5` 映射，避免国产实验默认模型误用于对照 provider。
+- 连通性测试默认模型补齐 OpenAI-compatible 对照通道的 GPT 模型映射，避免国产实验默认模型误用于对照 provider。
 
 ## v0.3.31-no-config-domestic
 
@@ -63,7 +63,7 @@
 - 本机 adapter 动态端口只出现在当前 Codex 进程参数中，不再保存到用户全局 Codex 配置。
 - 读 settings/catalog 不再顺手保存配置，避免多个启动器进程并发读取时把实验 catalog 重置成默认 OpenAI。
 - 默认 Codex 工作根设为用户目录；调用方显式传入 `-C` 或 `--cd` 时尊重调用方，避免 Codex CLI 因信任当前启动器目录而改写 `config.toml`。
-- 重新恢复 Qwen、DeepSeek、GLM、Kimi 的独立上游地址和 KEY，不再误用环境里残留的 `ciii` KEY。
+- 重新恢复 Qwen、DeepSeek、GLM、Kimi 的独立上游地址和 KEY，不再误用环境里残留的其他通道 KEY。
 
 ## v0.3.30-nightly-domestic
 

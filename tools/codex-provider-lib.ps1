@@ -194,7 +194,7 @@ function Infer-CodexModelVendorId {
     if ($id -match 'glm|bigmodel' -or $name -match 'glm|智谱' -or $baseUrl -match 'bigmodel') { return "glm" }
     if ($id -match 'kimi|moonshot' -or $name -match 'kimi|moonshot' -or $baseUrl -match 'moonshot') { return "kimi" }
     if ($id -match 'minimax' -or $name -match 'minimax' -or $baseUrl -match 'minimax') { return "minimax" }
-    if ($id -match 'openai|yanling|ciii' -or $name -match 'openai|小蓝|延林|yanling|ciii' -or $baseUrl -match 'openai|yanling|ciii|inroi') { return "openai" }
+    if ($id -match 'openai' -or $name -match 'openai' -or $baseUrl -match 'openai') { return "openai" }
     return "custom"
 }
 
