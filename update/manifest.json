@@ -1,0 +1,9 @@
+{
+  "version": "0.5.0",
+  "displayVersion": "v0.5.0",
+  "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/raw/master/releases/v0.5.0/CodexQuickLauncher-v0.5.0.zip",
+  "sha256": "BFD2A349817C0E05170AC6382615B1F234EB710F51DD4E71C848FA3E530A16F9",
+  "notesUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/blob/master/CHANGELOG.md",
+  "publishedAt": "2026-05-09T02:00:00+08:00",
+  "notes": "v0.5.0 作为国产模型适配发布基准：保留 no-config 启动路径，完善模型系列/模型版本/推理深度配置，接入 MiniMax，并将手动检查更新入口收进关于窗口。"
+}

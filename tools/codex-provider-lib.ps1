@@ -1,15 +1,280 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.3.19"
+$script:CodexSwitcherVersion = "v0.5.0"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:CodexSwitcherGitHub = "https://github.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherGitee = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
+$script:CodexSwitcherUpdateManifestUrl = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/raw/master/update/manifest.json"
 $script:CodexSwitcherLicense = "MIT 协议"
-$script:DefaultCodexSwitcherModels = @("gpt-5.5", "gpt-5.4")
-$script:DefaultCodexSwitcherReasoningEfforts = @("high", "xhigh", "medium", "low")
+$script:DefaultCodexSwitcherModels = @("qwen3.6-plus", "qwen-plus", "qwen-max", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner", "glm-5.1", "glm-4-plus", "kimi-k2.6", "minimax2.7", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+$script:DefaultCodexSwitcherReasoningEfforts = @("medium", "high", "low", "xhigh")
 $script:DefaultCodexSwitcherPermissionMode = "safe"
+
+function Get-DefaultCodexModelVendorCatalog {
+    @(
+        [pscustomobject]@{
+            id = "openai"
+            name = "OpenAI / GPT"
+            defaultModel = "gpt-5.5"
+            models = @("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+        }
+        [pscustomobject]@{
+            id = "qwen"
+            name = "Qwen / 通义千问"
+            defaultModel = "qwen3.6-plus"
+            models = @("qwen3.6-plus", "qwen-plus", "qwen-max")
+        }
+        [pscustomobject]@{
+            id = "deepseek"
+            name = "DeepSeek"
+            defaultModel = "deepseek-v4-pro"
+            models = @("deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner")
+        }
+        [pscustomobject]@{
+            id = "glm"
+            name = "GLM / 智谱"
+            defaultModel = "glm-5.1"
+            models = @("glm-5.1", "glm-4-plus")
+        }
+        [pscustomobject]@{
+            id = "kimi"
+            name = "Kimi / Moonshot"
+            defaultModel = "kimi-k2.6"
+            models = @("kimi-k2.6", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k")
+        }
+        [pscustomobject]@{
+            id = "minimax"
+            name = "MiniMax"
+            defaultModel = "minimax2.7"
+            models = @("minimax2.7")
+        }
+        [pscustomobject]@{
+            id = "custom"
+            name = "自定义 / OpenAI-compatible"
+            defaultModel = "gpt-5.5"
+            models = @("gpt-5.5", "gpt-5.4")
+        }
+    )
+}
+
+function Normalize-CodexModelSeriesCatalog {
+    param($Items)
+
+    $fallback = @(Get-DefaultCodexModelVendorCatalog)
+    $rawItems = @($Items)
+    if ($rawItems.Count -eq 0) {
+        $rawItems = @($fallback)
+    }
+
+    $seen = @{}
+    $series = @()
+    foreach ($item in @($rawItems)) {
+        if (-not $item) { continue }
+        $id = ([string](Get-CodexObjectProperty -Object $item -Name "id")).Trim().ToLowerInvariant()
+        if (-not $id) {
+            $id = ConvertTo-CatalogId ([string](Get-CodexObjectProperty -Object $item -Name "name"))
+        }
+        if (-not $id -or $seen.ContainsKey($id)) { continue }
+        $seen[$id] = $true
+
+        $fallbackItem = $fallback | Where-Object { $_.id -eq $id } | Select-Object -First 1
+        $name = ([string](Get-CodexObjectProperty -Object $item -Name "name")).Trim()
+        if (-not $name) {
+            $name = if ($fallbackItem) { [string]$fallbackItem.name } else { $id }
+        }
+        $fallbackModels = if ($fallbackItem) { @($fallbackItem.models) } else { @("gpt-5.5") }
+        $rawModels = @((Get-CodexObjectProperty -Object $item -Name "models"))
+        if ($rawModels.Count -eq 0) {
+            $rawModels = @($fallbackModels)
+        }
+        $models = @()
+        $modelNames = @()
+        foreach ($rawModel in @($rawModels)) {
+            $modelName = ""
+            $depths = @()
+            if ($rawModel -is [string]) {
+                $modelName = ([string]$rawModel).Trim()
+            } else {
+                $modelName = ([string](Get-CodexObjectProperty -Object $rawModel -Name "name")).Trim()
+                $depths = @((Get-CodexObjectProperty -Object $rawModel -Name "reasoningDepths"))
+            }
+            if (-not $modelName) { continue }
+            $key = $modelName.ToLowerInvariant()
+            if ($modelNames -contains $key) { continue }
+            $modelNames += $key
+            $fallbackDepths = @((Get-DefaultCodexModelReasoningEffortMap)[$modelName])
+            if ($fallbackDepths.Count -eq 0) { $fallbackDepths = @($script:DefaultCodexSwitcherReasoningEfforts) }
+            $depths = Normalize-CodexSwitcherList -Items $depths -Fallback $fallbackDepths
+            $models += [pscustomobject]@{
+                name = $modelName
+                reasoningDepths = @($depths)
+            }
+        }
+        if ($models.Count -eq 0) {
+            foreach ($fallbackModel in @($fallbackModels)) {
+                $models += [pscustomobject]@{
+                    name = [string]$fallbackModel
+                    reasoningDepths = @((Get-DefaultCodexModelReasoningEffortMap)[$fallbackModel])
+                }
+            }
+        }
+        $modelNameList = @($models | ForEach-Object { [string]$_.name })
+        $defaultModel = ([string](Get-CodexObjectProperty -Object $item -Name "defaultModel")).Trim()
+        if (-not $defaultModel -or $modelNameList -notcontains $defaultModel) {
+            $fallbackDefault = if ($fallbackItem) { [string]$fallbackItem.defaultModel } else { "" }
+            $defaultModel = if ($fallbackDefault -and $modelNameList -contains $fallbackDefault) { $fallbackDefault } else { [string]$modelNameList[0] }
+        }
+
+        $series += [pscustomobject]@{
+            id = $id
+            name = $name
+            defaultModel = $defaultModel
+            models = @($models)
+        }
+    }
+
+    if ($series.Count -eq 0) {
+        return @($fallback)
+    }
+    return @($series)
+}
+
+function Get-CodexModelVendorCatalog {
+    try {
+        $config = Get-CodexSwitcherConfig
+        $settings = Get-CodexObjectProperty -Object $config -Name "settings"
+        $configured = Get-CodexObjectProperty -Object $settings -Name "modelSeries"
+        return @(Normalize-CodexModelSeriesCatalog -Items $configured)
+    } catch {
+        return @(Get-DefaultCodexModelVendorCatalog)
+    }
+}
+
+function Get-DefaultCodexModelReasoningEffortMap {
+    @{
+        "gpt-5.5" = @("medium", "high", "xhigh", "low")
+        "gpt-5.4" = @("medium", "high", "xhigh", "low")
+        "gpt-5.4-mini" = @("medium", "high", "low")
+        "qwen3.6-plus" = @("medium")
+        "qwen-plus" = @("medium")
+        "qwen-max" = @("medium")
+        "deepseek-v4-pro" = @("medium")
+        "deepseek-v4-flash" = @("medium")
+        "deepseek-chat" = @("medium")
+        "deepseek-reasoner" = @("medium")
+        "glm-5.1" = @("medium")
+        "glm-4-plus" = @("medium")
+        "kimi-k2.6" = @("medium")
+        "minimax2.7" = @("medium")
+        "moonshot-v1-auto" = @("medium")
+        "moonshot-v1-32k" = @("medium")
+        "moonshot-v1-8k" = @("medium")
+    }
+}
+
+function Get-CodexModelVendorById {
+    param([string]$VendorId)
+
+    $id = ([string]$VendorId).Trim().ToLowerInvariant()
+    $vendor = Get-CodexModelVendorCatalog | Where-Object { $_.id -eq $id } | Select-Object -First 1
+    if ($vendor) {
+        return $vendor
+    }
+    return (Get-CodexModelVendorCatalog | Where-Object { $_.id -eq "custom" } | Select-Object -First 1)
+}
+
+function Infer-CodexModelVendorId {
+    param($Provider)
+
+    $id = ([string](Get-CodexObjectProperty -Object $Provider -Name "id")).Trim().ToLowerInvariant()
+    $name = ([string](Get-CodexObjectProperty -Object $Provider -Name "name")).Trim().ToLowerInvariant()
+    $baseUrl = ([string](Get-CodexObjectProperty -Object $Provider -Name "baseUrl")).Trim().ToLowerInvariant()
+
+    if ($id -match 'qwen|dashscope' -or $name -match 'qwen|通义|千问' -or $baseUrl -match 'dashscope|aliyuncs') { return "qwen" }
+    if ($id -match 'deepseek' -or $name -match 'deepseek' -or $baseUrl -match 'deepseek') { return "deepseek" }
+    if ($id -match 'glm|bigmodel' -or $name -match 'glm|智谱' -or $baseUrl -match 'bigmodel') { return "glm" }
+    if ($id -match 'kimi|moonshot' -or $name -match 'kimi|moonshot' -or $baseUrl -match 'moonshot') { return "kimi" }
+    if ($id -match 'minimax' -or $name -match 'minimax' -or $baseUrl -match 'minimax') { return "minimax" }
+    if ($id -match 'openai|yanling|ciii' -or $name -match 'openai|小蓝|延林|yanling|ciii' -or $baseUrl -match 'openai|yanling|ciii|inroi') { return "openai" }
+    return "custom"
+}
+
+function Normalize-CodexModelList {
+    param(
+        $Items,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Fallback
+    )
+
+    $seen = @{}
+    $values = @()
+    foreach ($item in @($Items)) {
+        $value = ([string]$item).Trim()
+        if (-not $value) { continue }
+        $key = $value.ToLowerInvariant()
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            $values += $value
+        }
+    }
+    if ($values.Count -eq 0) {
+        return @($Fallback)
+    }
+    return @($values)
+}
+
+function Normalize-CodexModelReasoningEffortMap {
+    param(
+        $Map,
+        [Parameter(Mandatory = $true)][string[]]$Models,
+        [Parameter(Mandatory = $true)][string[]]$ReasoningEfforts
+    )
+
+    $defaults = Get-DefaultCodexModelReasoningEffortMap
+    $result = [ordered]@{}
+    foreach ($model in @($Models)) {
+        $modelName = ([string]$model).Trim()
+        if (-not $modelName) { continue }
+
+        $raw = $null
+        if ($Map -is [System.Collections.IDictionary] -and $Map.Contains($modelName)) {
+            $raw = $Map[$modelName]
+        } elseif ($Map -and $Map.PSObject.Properties.Name -contains $modelName) {
+            $raw = $Map.$modelName
+        }
+
+        $fallback = if ($defaults.ContainsKey($modelName)) { @($defaults[$modelName]) } else { @($ReasoningEfforts) }
+        $values = Normalize-CodexSwitcherList -Items $raw -Fallback $fallback
+        $valid = @()
+        foreach ($value in @($values)) {
+            if ($ReasoningEfforts -contains $value -and $valid -notcontains $value) {
+                $valid += $value
+            }
+        }
+        if ($valid.Count -eq 0) {
+            foreach ($value in @($fallback)) {
+                if ($ReasoningEfforts -contains $value -and $valid -notcontains $value) {
+                    $valid += $value
+                }
+            }
+        }
+        if ($valid.Count -eq 0) {
+            $valid = @($ReasoningEfforts[0])
+        }
+        $result[$modelName] = @($valid)
+    }
+
+    return $result
+}
 
 function Resolve-CodexSwitcherRuntimeRoot {
     $installedRoot = Join-Path $env:USERPROFILE ".omx"
+    $toolDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $candidateRoot = Split-Path -Parent $toolDir
+    if ((Test-Path -LiteralPath (Join-Path $candidateRoot "codex-quick-launcher.portable")) -or
+        (Test-Path -LiteralPath (Join-Path $candidateRoot "ai-quick-launcher.portable")) -or
+        (Test-Path -LiteralPath (Join-Path $candidateRoot "codex-switcher.portable"))) {
+        return $candidateRoot
+    }
+
     if ($env:CODEX_QUICK_LAUNCHER_HOME) {
         return [Environment]::ExpandEnvironmentVariables($env:CODEX_QUICK_LAUNCHER_HOME)
     }
@@ -18,14 +283,6 @@ function Resolve-CodexSwitcherRuntimeRoot {
     }
     if ($env:CODEX_SWITCHER_HOME) {
         return [Environment]::ExpandEnvironmentVariables($env:CODEX_SWITCHER_HOME)
-    }
-
-    $toolDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-    $candidateRoot = Split-Path -Parent $toolDir
-    if ((Test-Path -LiteralPath (Join-Path $candidateRoot "codex-quick-launcher.portable")) -or
-        (Test-Path -LiteralPath (Join-Path $candidateRoot "ai-quick-launcher.portable")) -or
-        (Test-Path -LiteralPath (Join-Path $candidateRoot "codex-switcher.portable"))) {
-        return $candidateRoot
     }
 
     return $installedRoot
@@ -40,6 +297,11 @@ $script:CodexCatalogPath = Join-Path $script:CodexSwitcherRuntimeRoot "state\cod
 $script:CodexSwitcherSettingsPath = Join-Path $script:CodexSwitcherRuntimeRoot "state\codex-switcher-settings.json"
 $script:CodexSecretDir = Join-Path $script:CodexSwitcherRuntimeRoot "secrets\codex-provider-keys"
 
+function Get-CodexSwitcherInstallRoot {
+    $toolDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    return (Split-Path -Parent $toolDir)
+}
+
 function Get-CodexSwitcherBuildInfo {
     [pscustomobject]@{
         Version = $script:CodexSwitcherVersion
@@ -47,9 +309,272 @@ function Get-CodexSwitcherBuildInfo {
         Authors = $script:CodexSwitcherAuthors
         GitHub = $script:CodexSwitcherGitHub
         Gitee = $script:CodexSwitcherGitee
+        UpdateManifest = $script:CodexSwitcherUpdateManifestUrl
         License = $script:CodexSwitcherLicense
+        InstallRoot = Get-CodexSwitcherInstallRoot
         RuntimeRoot = $script:CodexSwitcherRuntimeRoot
         Portable = $script:CodexSwitcherIsPortable
+    }
+}
+
+function Get-CodexSwitcherComparableVersion {
+    param([string]$VersionText)
+
+    $text = ([string]$VersionText).Trim()
+    if ($text -match '(\d+\.\d+\.\d+)') {
+        return [version]$matches[1]
+    }
+    if ($text -match '(\d+\.\d+)') {
+        return [version]("$($matches[1]).0")
+    }
+    return [version]"0.0.0"
+}
+
+function Get-CodexSwitcherUpdateManifestUrl {
+    if ($env:CODEX_QUICK_LAUNCHER_UPDATE_MANIFEST) {
+        return [Environment]::ExpandEnvironmentVariables($env:CODEX_QUICK_LAUNCHER_UPDATE_MANIFEST)
+    }
+    return $script:CodexSwitcherUpdateManifestUrl
+}
+
+function Get-CodexSwitcherPowerShellPath {
+    foreach ($name in @("pwsh.exe", "pwsh", "powershell.exe", "powershell")) {
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        if ($cmd) {
+            return $cmd.Source
+        }
+    }
+    return $null
+}
+
+function Join-CodexSwitcherProcessArguments {
+    param([string[]]$Arguments)
+
+    $escaped = @()
+    foreach ($arg in @($Arguments)) {
+        if ($null -eq $arg) {
+            continue
+        }
+        $value = [string]$arg
+        if ($value -notmatch '[\s"`]') {
+            $escaped += $value
+            continue
+        }
+        $escaped += '"' + ($value -replace '"', '\"') + '"'
+    }
+    return ($escaped -join " ")
+}
+
+function Read-CodexSwitcherTextResource {
+    param([Parameter(Mandatory = $true)][string]$Uri)
+
+    $value = [Environment]::ExpandEnvironmentVariables(([string]$Uri).Trim())
+    if (-not $value) {
+        throw "更新地址为空。"
+    }
+
+    if ($value -match '^file://') {
+        $fileUri = [uri]$value
+        return Get-Content -LiteralPath $fileUri.LocalPath -Raw -Encoding UTF8
+    }
+    if ($value -match '^https?://') {
+        return (Invoke-WebRequest -Uri $value -UseBasicParsing -TimeoutSec 30).Content
+    }
+    if (Test-Path -LiteralPath $value) {
+        return Get-Content -LiteralPath $value -Raw -Encoding UTF8
+    }
+
+    throw "无法读取更新地址：$value"
+}
+
+function Save-CodexSwitcherBinaryResource {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$OutFile
+    )
+
+    $value = [Environment]::ExpandEnvironmentVariables(([string]$Uri).Trim())
+    if (-not $value) {
+        throw "更新包地址为空。"
+    }
+
+    if ($value -match '^file://') {
+        $fileUri = [uri]$value
+        Copy-Item -LiteralPath $fileUri.LocalPath -Destination $OutFile -Force
+        return
+    }
+    if ($value -match '^https?://') {
+        Invoke-WebRequest -Uri $value -OutFile $OutFile -UseBasicParsing -TimeoutSec 120
+        return
+    }
+    if (Test-Path -LiteralPath $value) {
+        Copy-Item -LiteralPath $value -Destination $OutFile -Force
+        return
+    }
+
+    throw "无法下载更新包：$value"
+}
+
+function Show-CodexSwitcherMessage {
+    param(
+        [string]$Message,
+        [string]$Title = $script:CodexSwitcherProductName,
+        [string]$Icon = "Information",
+        $Owner
+    )
+
+    Add-Type -AssemblyName PresentationFramework
+    $image = [System.Enum]::Parse([System.Windows.MessageBoxImage], $Icon)
+    if ($Owner) {
+        [System.Windows.MessageBox]::Show($Owner, $Message, $Title, [System.Windows.MessageBoxButton]::OK, $image) | Out-Null
+    } else {
+        [System.Windows.MessageBox]::Show($Message, $Title, [System.Windows.MessageBoxButton]::OK, $image) | Out-Null
+    }
+}
+
+function Confirm-CodexSwitcherUpdate {
+    param(
+        [Parameter(Mandatory = $true)]$Manifest,
+        [string]$CurrentVersion,
+        $Owner
+    )
+
+    Add-Type -AssemblyName PresentationFramework
+    $displayVersion = [string](Get-CodexObjectProperty -Object $Manifest -Name "displayVersion")
+    if (-not $displayVersion) {
+        $displayVersion = "v$([string](Get-CodexObjectProperty -Object $Manifest -Name "version"))"
+    }
+    $publishedAt = [string](Get-CodexObjectProperty -Object $Manifest -Name "publishedAt")
+    $notes = [string](Get-CodexObjectProperty -Object $Manifest -Name "notes")
+    if ($notes.Length -gt 600) {
+        $notes = $notes.Substring(0, 600) + "..."
+    }
+
+    $message = "发现新版本：$displayVersion`n当前版本：$CurrentVersion"
+    if ($publishedAt) {
+        $message += "`n发布时间：$publishedAt"
+    }
+    if ($notes) {
+        $message += "`n`n更新说明：`n$notes"
+    }
+    $message += "`n`n确定下载并覆盖当前安装目录吗？更新器会在下载完成后关闭当前窗口，并保留 state、logs、secrets、.omx 等本机数据目录。"
+
+    if ($Owner) {
+        return [System.Windows.MessageBox]::Show($Owner, $message, "检查更新", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+    }
+    return [System.Windows.MessageBox]::Show($message, "检查更新", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+}
+
+function Start-CodexSwitcherUpdater {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackagePath,
+        [Parameter(Mandatory = $true)][string]$ExpectedSha256
+    )
+
+    $installRoot = Get-CodexSwitcherInstallRoot
+    $updaterScript = Join-Path $installRoot "tools\update-codex-quick-launcher.ps1"
+    if (-not (Test-Path -LiteralPath $updaterScript)) {
+        throw "找不到更新器脚本：$updaterScript"
+    }
+
+    $psExe = Get-CodexSwitcherPowerShellPath
+    if (-not $psExe) {
+        throw "找不到 PowerShell，无法启动更新器。"
+    }
+
+    $launcherExe = Join-Path $installRoot "Codex 便捷启动器.exe"
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $updaterScript,
+        "-PackagePath", $PackagePath,
+        "-InstallRoot", $installRoot,
+        "-ExpectedSha256", $ExpectedSha256,
+        "-ParentProcessId", ([string][System.Diagnostics.Process]::GetCurrentProcess().Id)
+    )
+    if (Test-Path -LiteralPath $launcherExe) {
+        $args += @("-RelaunchPath", $launcherExe)
+    }
+
+    Start-Process -FilePath $psExe -ArgumentList (Join-CodexSwitcherProcessArguments -Arguments $args) -WorkingDirectory $installRoot | Out-Null
+}
+
+function Invoke-CodexSwitcherUpdateCheck {
+    param($Owner)
+
+    Add-Type -AssemblyName PresentationFramework
+    try {
+        $manifestUrl = Get-CodexSwitcherUpdateManifestUrl
+        $manifestText = Read-CodexSwitcherTextResource -Uri $manifestUrl
+        $manifest = $manifestText | ConvertFrom-Json
+
+        $latestVersionText = [string](Get-CodexObjectProperty -Object $manifest -Name "version")
+        if (-not $latestVersionText) {
+            throw "更新清单缺少 version 字段。"
+        }
+
+        $currentVersion = $script:CodexSwitcherVersion
+        $current = Get-CodexSwitcherComparableVersion -VersionText $currentVersion
+        $latest = Get-CodexSwitcherComparableVersion -VersionText $latestVersionText
+        if ($latest -le $current) {
+            $display = [string](Get-CodexObjectProperty -Object $manifest -Name "displayVersion")
+            if (-not $display) { $display = "v$latestVersionText" }
+            Show-CodexSwitcherMessage -Owner $Owner -Title "检查更新" -Message "当前已是最新版本。`n当前版本：$currentVersion`n更新源版本：$display" -Icon "Information"
+            return [pscustomobject]@{ Status = "UpToDate"; Version = $latestVersionText }
+        }
+
+        $confirm = Confirm-CodexSwitcherUpdate -Manifest $manifest -CurrentVersion $currentVersion -Owner $Owner
+        if ($confirm -ne [System.Windows.MessageBoxResult]::Yes) {
+            return [pscustomobject]@{ Status = "Canceled"; Version = $latestVersionText }
+        }
+
+        $packageUrl = [string](Get-CodexObjectProperty -Object $manifest -Name "packageUrl")
+        $sha256 = ([string](Get-CodexObjectProperty -Object $manifest -Name "sha256")).Trim()
+        if (-not $packageUrl) {
+            throw "更新清单缺少 packageUrl 字段。"
+        }
+        if (-not $sha256) {
+            throw "更新清单缺少 sha256 字段。为避免覆盖到不完整或被篡改的包，本启动器要求更新包必须带 SHA256。"
+        }
+
+        $downloadRoot = Join-Path ([System.IO.Path]::GetTempPath()) "CodexQuickLauncherUpdate"
+        New-Item -ItemType Directory -Force -Path $downloadRoot | Out-Null
+        try {
+            $packageName = [System.IO.Path]::GetFileName(([uri]$packageUrl).AbsolutePath)
+        } catch {
+            $packageName = [System.IO.Path]::GetFileName($packageUrl)
+        }
+        if (-not $packageName -or $packageName -eq "/") {
+            $packageName = "CodexQuickLauncher-$latestVersionText.zip"
+        }
+        if (-not $packageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $packageName = "$packageName.zip"
+        }
+        $packagePath = Join-Path $downloadRoot $packageName
+        try {
+            Save-CodexSwitcherBinaryResource -Uri $packageUrl -OutFile $packagePath
+
+            $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $packagePath).Hash
+            if ($actualHash -ne $sha256) {
+                Remove-Item -LiteralPath $packagePath -Force -ErrorAction SilentlyContinue
+                throw "更新包 SHA256 校验失败。`n期望：$sha256`n实际：$actualHash"
+            }
+        } catch {
+            $notesUrl = [string](Get-CodexObjectProperty -Object $manifest -Name "notesUrl")
+            $detail = "更新包下载或校验失败。可能是 Gitee release 还没发布，或者当前网络暂时访问不到下载地址。"
+            if ($notesUrl) {
+                $detail += "`n发布页：$notesUrl"
+            }
+            throw "$detail`n`n原始错误：$($_.Exception.Message)"
+        }
+
+        Start-CodexSwitcherUpdater -PackagePath $packagePath -ExpectedSha256 $sha256
+        Show-CodexSwitcherMessage -Owner $Owner -Title "检查更新" -Message "更新包已下载并校验通过。`n`n更新器已经启动，当前窗口将关闭；更新完成后会尝试重新打开启动器。" -Icon "Information"
+        return [pscustomobject]@{ Status = "Started"; Version = $latestVersionText; PackagePath = $packagePath }
+    } catch {
+        $message = (($_ | Out-String).Trim())
+        Show-CodexSwitcherMessage -Owner $Owner -Title "检查更新失败" -Message $message -Icon "Error"
+        return [pscustomobject]@{ Status = "Failed"; Error = $message }
     }
 }
 
@@ -219,7 +744,7 @@ function Save-CodexSwitcherConfig {
     $tempPath = Join-Path $dir ("codex-quick-launcher-config.{0}.{1}.tmp" -f $PID, [guid]::NewGuid().ToString("N"))
     try {
         $Config | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $tempPath -Encoding UTF8
-        Move-Item -LiteralPath $tempPath -Destination $script:CodexSwitcherConfigPath -Force
+        [System.IO.File]::Copy($tempPath, $script:CodexSwitcherConfigPath, $true)
     } finally {
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
@@ -253,6 +778,8 @@ function Save-CodexSwitcherSettings {
 
     $models = Normalize-CodexSwitcherList -Items $Settings.models -Fallback $script:DefaultCodexSwitcherModels
     $reasoningEfforts = Normalize-CodexSwitcherList -Items $Settings.reasoningEfforts -Fallback $script:DefaultCodexSwitcherReasoningEfforts
+    $modelReasoningEfforts = Normalize-CodexModelReasoningEffortMap -Map (Get-CodexObjectProperty -Object $Settings -Name "modelReasoningEfforts") -Models $models -ReasoningEfforts $reasoningEfforts
+    $modelSeries = Normalize-CodexModelSeriesCatalog -Items (Get-CodexObjectProperty -Object $Settings -Name "modelSeries")
 
     $defaultModel = ([string]$Settings.defaultModel).Trim()
     if (-not $defaultModel -or $models -notcontains $defaultModel) {
@@ -268,7 +795,9 @@ function Save-CodexSwitcherSettings {
         version = 1
         updatedAt = (Get-Date -Format o)
         models = @($models)
+        modelSeries = @($modelSeries)
         reasoningEfforts = @($reasoningEfforts)
+        modelReasoningEfforts = $modelReasoningEfforts
         defaultModel = $defaultModel
         defaultReasoningEffort = $defaultReasoningEffort
     }
@@ -280,9 +809,13 @@ function Save-CodexSwitcherSettings {
 }
 
 function New-DefaultCodexSwitcherSettings {
+    $modelReasoningEfforts = Normalize-CodexModelReasoningEffortMap -Map $null -Models $script:DefaultCodexSwitcherModels -ReasoningEfforts $script:DefaultCodexSwitcherReasoningEfforts
+    $modelSeries = Normalize-CodexModelSeriesCatalog -Items $null
     [pscustomobject]@{
         models = @($script:DefaultCodexSwitcherModels)
+        modelSeries = @($modelSeries)
         reasoningEfforts = @($script:DefaultCodexSwitcherReasoningEfforts)
+        modelReasoningEfforts = $modelReasoningEfforts
         defaultModel = $script:DefaultCodexSwitcherModels[0]
         defaultReasoningEffort = $script:DefaultCodexSwitcherReasoningEfforts[0]
     }
@@ -293,11 +826,26 @@ function Get-CodexSwitcherSettings {
         $config = Get-CodexSwitcherConfig
         $settings = Get-CodexObjectProperty -Object $config -Name "settings"
         if (-not $settings) {
-            $settings = New-DefaultCodexSwitcherSettings
+            return New-DefaultCodexSwitcherSettings
         }
-        return Save-CodexSwitcherSettings -Settings $settings
+        $models = Normalize-CodexSwitcherList -Items $settings.models -Fallback $script:DefaultCodexSwitcherModels
+        $reasoningEfforts = Normalize-CodexSwitcherList -Items $settings.reasoningEfforts -Fallback $script:DefaultCodexSwitcherReasoningEfforts
+        $modelReasoningEfforts = Normalize-CodexModelReasoningEffortMap -Map (Get-CodexObjectProperty -Object $settings -Name "modelReasoningEfforts") -Models $models -ReasoningEfforts $reasoningEfforts
+        $modelSeries = Normalize-CodexModelSeriesCatalog -Items (Get-CodexObjectProperty -Object $settings -Name "modelSeries")
+        $defaultModel = ([string]$settings.defaultModel).Trim()
+        if (-not $defaultModel -or $models -notcontains $defaultModel) { $defaultModel = $models[0] }
+        $defaultReasoningEffort = ([string]$settings.defaultReasoningEffort).Trim()
+        if (-not $defaultReasoningEffort -or $reasoningEfforts -notcontains $defaultReasoningEffort) { $defaultReasoningEffort = $reasoningEfforts[0] }
+        return [pscustomobject]@{
+            models = @($models)
+            modelSeries = @($modelSeries)
+            reasoningEfforts = @($reasoningEfforts)
+            modelReasoningEfforts = $modelReasoningEfforts
+            defaultModel = $defaultModel
+            defaultReasoningEffort = $defaultReasoningEffort
+        }
     } catch {
-        return Save-CodexSwitcherSettings -Settings (New-DefaultCodexSwitcherSettings)
+        return New-DefaultCodexSwitcherSettings
     }
 }
 
@@ -305,13 +853,17 @@ function Set-CodexSwitcherSettings {
     param(
         [Parameter(Mandatory = $true)][string[]]$Models,
         [Parameter(Mandatory = $true)][string[]]$ReasoningEfforts,
+        $ModelReasoningEfforts = $null,
+        $ModelSeries = $null,
         [string]$DefaultModel,
         [string]$DefaultReasoningEffort
     )
 
     Save-CodexSwitcherSettings -Settings ([pscustomobject]@{
         models = @($Models)
+        modelSeries = $ModelSeries
         reasoningEfforts = @($ReasoningEfforts)
+        modelReasoningEfforts = $ModelReasoningEfforts
         defaultModel = $DefaultModel
         defaultReasoningEffort = $DefaultReasoningEffort
     })
@@ -352,7 +904,7 @@ function Set-CodexSwitcherDefaultModel {
     param([Parameter(Mandatory = $true)][string]$Model)
 
     $settings = Get-CodexSwitcherSettings
-    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts @($settings.reasoningEfforts) -DefaultModel $Model -DefaultReasoningEffort $settings.defaultReasoningEffort
+    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts @($settings.reasoningEfforts) -ModelReasoningEfforts $settings.modelReasoningEfforts -ModelSeries $settings.modelSeries -DefaultModel $Model -DefaultReasoningEffort $settings.defaultReasoningEffort
 }
 
 function Move-CodexSwitcherModel {
@@ -363,14 +915,14 @@ function Move-CodexSwitcherModel {
 
     $settings = Get-CodexSwitcherSettings
     $models = Move-CodexSwitcherListItem -Items @($settings.models) -Value $Model -Direction $Direction
-    Set-CodexSwitcherSettings -Models $models -ReasoningEfforts @($settings.reasoningEfforts) -DefaultModel $settings.defaultModel -DefaultReasoningEffort $settings.defaultReasoningEffort
+    Set-CodexSwitcherSettings -Models $models -ReasoningEfforts @($settings.reasoningEfforts) -ModelReasoningEfforts $settings.modelReasoningEfforts -ModelSeries $settings.modelSeries -DefaultModel $settings.defaultModel -DefaultReasoningEffort $settings.defaultReasoningEffort
 }
 
 function Set-CodexSwitcherDefaultReasoningEffort {
     param([Parameter(Mandatory = $true)][string]$ReasoningEffort)
 
     $settings = Get-CodexSwitcherSettings
-    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts @($settings.reasoningEfforts) -DefaultModel $settings.defaultModel -DefaultReasoningEffort $ReasoningEffort
+    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts @($settings.reasoningEfforts) -ModelReasoningEfforts $settings.modelReasoningEfforts -ModelSeries $settings.modelSeries -DefaultModel $settings.defaultModel -DefaultReasoningEffort $ReasoningEffort
 }
 
 function Move-CodexSwitcherReasoningEffort {
@@ -381,7 +933,7 @@ function Move-CodexSwitcherReasoningEffort {
 
     $settings = Get-CodexSwitcherSettings
     $reasoningEfforts = Move-CodexSwitcherListItem -Items @($settings.reasoningEfforts) -Value $ReasoningEffort -Direction $Direction
-    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts $reasoningEfforts -DefaultModel $settings.defaultModel -DefaultReasoningEffort $settings.defaultReasoningEffort
+    Set-CodexSwitcherSettings -Models @($settings.models) -ReasoningEfforts $reasoningEfforts -ModelReasoningEfforts $settings.modelReasoningEfforts -ModelSeries $settings.modelSeries -DefaultModel $settings.defaultModel -DefaultReasoningEffort $settings.defaultReasoningEffort
 }
 
 function Get-OmxCodexConfig {
@@ -656,11 +1208,14 @@ function New-CodexCatalogFromExisting {
         $providers += [ordered]@{
             id = $provider.Id
             name = $provider.Name
+            vendorId = (Infer-CodexModelVendorId -Provider $provider)
             baseUrl = $provider.BaseUrl
             envKey = $(if ($provider.EnvKey) { $provider.EnvKey } else { "OPENAI_API_KEY" })
             profile = $provider.ProfileName
             wireApi = $provider.WireApi
             requiresOpenAIAuth = [bool]$provider.RequiresOpenAIAuth
+            models = @((Get-CodexModelVendorById -VendorId (Infer-CodexModelVendorId -Provider $provider)).models)
+            defaultModel = [string](Get-CodexModelVendorById -VendorId (Infer-CodexModelVendorId -Provider $provider)).defaultModel
             keys = @($providerKeys)
         }
     }
@@ -671,6 +1226,36 @@ function New-CodexCatalogFromExisting {
         defaultProvider = $(if ($providers.Count -gt 0) { $providers[0].id } else { "" })
         providers = @($providers)
     }
+}
+
+function New-DefaultCodexProviderCatalog {
+    [ordered]@{
+        version = 1
+        updatedAt = (Get-Date -Format o)
+        defaultProvider = "openai"
+        providers = @(
+            [ordered]@{
+                id = "openai"
+                name = "OpenAI"
+                vendorId = "openai"
+                baseUrl = "https://api.openai.com/v1"
+                envKey = "OPENAI_API_KEY"
+                profile = ""
+                wireApi = "responses"
+                requiresOpenAIAuth = $true
+                models = @("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+                defaultModel = "gpt-5.5"
+                defaultKeySource = ""
+                keys = @()
+            }
+        )
+    }
+}
+
+function Test-CodexLegacySwitcherState {
+    return ((Test-Path -LiteralPath $script:CodexSelectionPath) -or
+        (Test-Path -LiteralPath $script:CodexCatalogPath) -or
+        (Test-Path -LiteralPath $script:CodexSwitcherSettingsPath))
 }
 
 function Normalize-CodexProviderCatalog {
@@ -719,10 +1304,69 @@ function Normalize-CodexProviderCatalog {
             $providerWireApi = "responses"
         }
 
+        $providerVendorIds = @()
+        foreach ($vendorId in @((Get-CodexObjectProperty -Object $provider -Name "vendorIds"))) {
+            $value = ([string]$vendorId).Trim().ToLowerInvariant()
+            if ($value -and $providerVendorIds -notcontains $value) {
+                $providerVendorIds += $value
+            }
+        }
+        $providerVendorId = ([string](Get-CodexObjectProperty -Object $provider -Name "vendorId")).Trim().ToLowerInvariant()
+        if ($providerVendorId -and $providerVendorIds -notcontains $providerVendorId) {
+            $providerVendorIds += $providerVendorId
+        }
+        if ($providerVendorIds.Count -eq 0) {
+            $providerVendorIds += (Infer-CodexModelVendorId -Provider $provider)
+        }
+
+        $vendors = @()
+        foreach ($vendorId in @($providerVendorIds)) {
+            $vendor = Get-CodexModelVendorById -VendorId $vendorId
+            if (-not ($vendors | Where-Object { $_.id -eq $vendor.id } | Select-Object -First 1)) {
+                $vendors += $vendor
+            }
+        }
+        if ($vendors.Count -eq 0) {
+            $vendors += (Get-CodexModelVendorById -VendorId "custom")
+        }
+        $providerVendorIds = @($vendors | ForEach-Object { [string]$_.id })
+        $providerVendorId = [string]$providerVendorIds[0]
+        $vendorModelFallback = @()
+        foreach ($vendor in @($vendors)) {
+            foreach ($model in @($vendor.models)) {
+                $modelName = if ($model -is [string]) { [string]$model } else { [string](Get-CodexObjectProperty -Object $model -Name "name") }
+                if ($modelName -and $vendorModelFallback -notcontains $modelName) {
+                    $vendorModelFallback += [string]$modelName
+                }
+            }
+        }
+        $hasProviderModelsProperty = (($provider -is [System.Collections.IDictionary] -and $provider.Contains("models")) -or ($provider.PSObject.Properties.Name -contains "models"))
+        $rawProviderModels = Get-CodexObjectProperty -Object $provider -Name "models"
+        if ($hasProviderModelsProperty -and @($rawProviderModels).Count -eq 0) {
+            $providerModels = @()
+        } else {
+            $providerModels = Normalize-CodexModelList -Items $rawProviderModels -Fallback @($vendorModelFallback)
+        }
+        $providerDefaultModel = ([string](Get-CodexObjectProperty -Object $provider -Name "defaultModel")).Trim()
+        if ($providerModels.Count -eq 0) {
+            $providerDefaultModel = ""
+        } elseif (-not $providerDefaultModel -or $providerModels -notcontains $providerDefaultModel) {
+            if ($providerModels -contains $vendors[0].defaultModel) {
+                $providerDefaultModel = [string]$vendors[0].defaultModel
+            } else {
+                $providerDefaultModel = [string]$providerModels[0]
+            }
+        }
+
         Set-CodexObjectProperty -Object $provider -Name "id" -Value $providerId
         Set-CodexObjectProperty -Object $provider -Name "name" -Value $providerName
+        Set-CodexObjectProperty -Object $provider -Name "vendorId" -Value $providerVendorId
+        Set-CodexObjectProperty -Object $provider -Name "vendorIds" -Value @($providerVendorIds)
+        Set-CodexObjectProperty -Object $provider -Name "vendorName" -Value (($vendors | ForEach-Object { [string]$_.name }) -join " / ")
         Set-CodexObjectProperty -Object $provider -Name "envKey" -Value $providerEnvKey
         Set-CodexObjectProperty -Object $provider -Name "wireApi" -Value $providerWireApi
+        Set-CodexObjectProperty -Object $provider -Name "models" -Value @($providerModels)
+        Set-CodexObjectProperty -Object $provider -Name "defaultModel" -Value $providerDefaultModel
         $providerKeys = @($provider.keys)
         $defaultKeySource = ([string]$provider.defaultKeySource).Trim()
         $validDefaultKey = $false
@@ -785,12 +1429,23 @@ function Get-CodexProviderCatalog {
         $config = Get-CodexSwitcherConfig
         $catalog = Get-CodexObjectProperty -Object $config -Name "catalog"
         if (-not $catalog) {
-            $catalog = New-CodexCatalogFromExisting
+            $catalog = if ($script:CodexSwitcherIsPortable -and -not (Test-CodexLegacySwitcherState)) {
+                New-DefaultCodexProviderCatalog
+            } else {
+                New-CodexCatalogFromExisting
+            }
         }
-        return Save-CodexProviderCatalog -Catalog $catalog
+        return Normalize-CodexProviderCatalog -Catalog $catalog
     } catch {
-        $catalog = New-CodexCatalogFromExisting
-        return Save-CodexProviderCatalog -Catalog $catalog
+        if (Test-Path -LiteralPath $script:CodexSwitcherConfigPath) {
+            throw
+        }
+        $catalog = if ($script:CodexSwitcherIsPortable -and -not (Test-CodexLegacySwitcherState)) {
+            New-DefaultCodexProviderCatalog
+        } else {
+            New-CodexCatalogFromExisting
+        }
+        return Normalize-CodexProviderCatalog -Catalog $catalog
     }
 }
 
@@ -814,6 +1469,41 @@ function Get-CatalogProviderById {
     return $provider
 }
 
+function Get-CodexProviderModels {
+    param([Parameter(Mandatory = $true)]$Provider)
+
+    $vendor = Get-CodexModelVendorById -VendorId (Get-CodexObjectProperty -Object $Provider -Name "vendorId")
+    return @(Normalize-CodexModelList -Items (Get-CodexObjectProperty -Object $Provider -Name "models") -Fallback @($vendor.models))
+}
+
+function Get-CodexProviderDefaultModel {
+    param([Parameter(Mandatory = $true)]$Provider)
+
+    $models = @(Get-CodexProviderModels -Provider $Provider)
+    $defaultModel = ([string](Get-CodexObjectProperty -Object $Provider -Name "defaultModel")).Trim()
+    if ($defaultModel -and $models -contains $defaultModel) {
+        return $defaultModel
+    }
+    if ($models.Count -gt 0) {
+        return [string]$models[0]
+    }
+    return [string]$script:DefaultCodexSwitcherModels[0]
+}
+
+function Resolve-CodexModelForProvider {
+    param(
+        [Parameter(Mandatory = $true)]$Provider,
+        [string]$Model
+    )
+
+    $models = @(Get-CodexProviderModels -Provider $Provider)
+    $candidate = ([string]$Model).Trim()
+    if ($candidate -and $models -contains $candidate) {
+        return $candidate
+    }
+    return (Get-CodexProviderDefaultModel -Provider $Provider)
+}
+
 function Set-CodexCatalogDefaultProvider {
     param([Parameter(Mandatory = $true)][string]$ProviderName)
 
@@ -830,7 +1520,7 @@ function Set-CodexCatalogDefaultProvider {
 function Move-CodexCatalogProvider {
     param(
         [Parameter(Mandatory = $true)][string]$ProviderName,
-        [Parameter(Mandatory = $true)][ValidateSet("Up", "Down")][string]$Direction
+        [Parameter(Mandatory = $true)][ValidateSet("Top", "Up", "Down", "Bottom")][string]$Direction
     )
 
     $catalog = Get-CodexProviderCatalog
@@ -845,6 +1535,31 @@ function Move-CodexCatalogProvider {
 
     if ($index -lt 0) {
         throw "Unknown provider: $ProviderName"
+    }
+
+    if ($Direction -eq "Top") {
+        if ($index -eq 0) { return $catalog }
+        $current = $providers[$index]
+        $newProviders = @($current)
+        for ($i = 0; $i -lt $providers.Count; $i++) {
+            if ($i -ne $index) { $newProviders += $providers[$i] }
+        }
+        $catalog.providers = @($newProviders)
+        Save-CodexProviderCatalog -Catalog $catalog | Out-Null
+        return $catalog
+    }
+
+    if ($Direction -eq "Bottom") {
+        if ($index -eq ($providers.Count - 1)) { return $catalog }
+        $current = $providers[$index]
+        $newProviders = @()
+        for ($i = 0; $i -lt $providers.Count; $i++) {
+            if ($i -ne $index) { $newProviders += $providers[$i] }
+        }
+        $newProviders += $current
+        $catalog.providers = @($newProviders)
+        Save-CodexProviderCatalog -Catalog $catalog | Out-Null
+        return $catalog
     }
 
     $targetIndex = if ($Direction -eq "Up") { $index - 1 } else { $index + 1 }
@@ -963,33 +1678,109 @@ function Add-CodexCatalogProvider {
         [string]$EnvKey = "CODEX_PROVIDER_API_KEY",
         [string]$Id,
         [string]$Profile = "",
-        [string]$WireApi = "responses"
+        [string]$WireApi = "responses",
+        [string]$VendorId = "",
+        [string[]]$VendorIds = @(),
+        [string[]]$Models = @(),
+        [string]$DefaultModel = "",
+        [switch]$AllowEmptyModels
     )
 
     $catalog = Get-CodexProviderCatalog
     if (-not $Id) { $Id = ConvertTo-CatalogId $Name }
+    $normalizedVendorIds = @()
+    foreach ($item in @($VendorIds)) {
+        $value = ([string]$item).Trim().ToLowerInvariant()
+        if ($value -and $normalizedVendorIds -notcontains $value) { $normalizedVendorIds += $value }
+    }
+    if ($VendorId -and $normalizedVendorIds -notcontains $VendorId.Trim().ToLowerInvariant()) {
+        $normalizedVendorIds += $VendorId.Trim().ToLowerInvariant()
+    }
+    if ($normalizedVendorIds.Count -eq 0) {
+        $normalizedVendorIds += (Infer-CodexModelVendorId -Provider ([pscustomobject]@{ id = $Id; name = $Name; baseUrl = $BaseUrl }))
+    }
+    $vendors = @()
+    foreach ($item in @($normalizedVendorIds)) {
+        $vendor = Get-CodexModelVendorById -VendorId $item
+        if (-not ($vendors | Where-Object { $_.id -eq $vendor.id } | Select-Object -First 1)) {
+            $vendors += $vendor
+        }
+    }
+    $normalizedVendorIds = @($vendors | ForEach-Object { [string]$_.id })
+    $primaryVendor = $vendors[0]
+    $fallbackModels = @()
+    foreach ($vendor in @($vendors)) {
+        foreach ($model in @($vendor.models)) {
+            $modelName = if ($model -is [string]) { [string]$model } else { [string](Get-CodexObjectProperty -Object $model -Name "name") }
+            if ($modelName -and $fallbackModels -notcontains $modelName) { $fallbackModels += [string]$modelName }
+        }
+    }
+    if ($AllowEmptyModels -and @($Models).Count -eq 0) {
+        $normalizedModels = @()
+    } else {
+        $normalizedModels = Normalize-CodexModelList -Items $Models -Fallback @($fallbackModels)
+    }
+    if ($normalizedModels.Count -eq 0) {
+        $DefaultModel = ""
+    } elseif (-not $DefaultModel -or $normalizedModels -notcontains $DefaultModel) {
+        $DefaultModel = if ($normalizedModels -contains $primaryVendor.defaultModel) { [string]$primaryVendor.defaultModel } else { [string]$normalizedModels[0] }
+    }
     $existing = @($catalog.providers) | Where-Object { $_.id -eq $Id } | Select-Object -First 1
     if ($existing) {
         $existing.name = $Name
+        Set-CodexObjectProperty -Object $existing -Name "vendorId" -Value ([string]$primaryVendor.id)
+        Set-CodexObjectProperty -Object $existing -Name "vendorIds" -Value @($normalizedVendorIds)
+        Set-CodexObjectProperty -Object $existing -Name "vendorName" -Value (($vendors | ForEach-Object { [string]$_.name }) -join " / ")
         $existing.baseUrl = $BaseUrl
         $existing.envKey = $EnvKey
         $existing.profile = $Profile
         $existing.wireApi = $WireApi
+        Set-CodexObjectProperty -Object $existing -Name "models" -Value @($normalizedModels)
+        Set-CodexObjectProperty -Object $existing -Name "defaultModel" -Value $DefaultModel
     } else {
         $catalog.providers += [pscustomobject]@{
             id = $Id
             name = $Name
+            vendorId = [string]$primaryVendor.id
+            vendorIds = @($normalizedVendorIds)
+            vendorName = (($vendors | ForEach-Object { [string]$_.name }) -join " / ")
             baseUrl = $BaseUrl
             envKey = $EnvKey
             profile = $Profile
             wireApi = $WireApi
             requiresOpenAIAuth = $false
+            models = @($normalizedModels)
+            defaultModel = $DefaultModel
             defaultKeySource = ""
             keys = @()
         }
     }
     Save-CodexProviderCatalog -Catalog $catalog | Out-Null
-    Sync-CodexConfigProvider -ProviderId $Id -Name $Name -BaseUrl $BaseUrl -EnvKey $EnvKey -WireApi $WireApi
+}
+
+function ConvertTo-CodexConfigString {
+    param([AllowEmptyString()][string]$Value)
+
+    return '"' + ([string]$Value).Replace('\', '\\').Replace('"', '\"') + '"'
+}
+
+function Get-CodexProviderConfigArgs {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProviderId,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$BaseUrl,
+        [string]$EnvKey = "OPENAI_API_KEY",
+        [string]$WireApi = "responses"
+    )
+
+    @(
+        "-c", "model_provider=$(ConvertTo-CodexConfigString $ProviderId)",
+        "-c", "model_providers.$ProviderId.name=$(ConvertTo-CodexConfigString $Name)",
+        "-c", "model_providers.$ProviderId.base_url=$(ConvertTo-CodexConfigString $BaseUrl)",
+        "-c", "model_providers.$ProviderId.wire_api=$(ConvertTo-CodexConfigString $WireApi)",
+        "-c", "model_providers.$ProviderId.env_key=$(ConvertTo-CodexConfigString $EnvKey)",
+        "-c", "model_providers.$ProviderId.supports_websockets=false"
+    )
 }
 
 function Sync-CodexConfigProvider {
@@ -1001,125 +1792,17 @@ function Sync-CodexConfigProvider {
         [string]$WireApi = "responses"
     )
 
-    if (-not (Test-Path -LiteralPath $script:CodexConfigPath)) {
-        New-Item -ItemType Directory -Force (Split-Path -Parent $script:CodexConfigPath) | Out-Null
-        Set-Content -LiteralPath $script:CodexConfigPath -Value "" -Encoding UTF8
-    }
-
-    $content = Get-Content -LiteralPath $script:CodexConfigPath -Raw -Encoding UTF8
-    $sectionPattern = "(?ms)^\[model_providers\.$([regex]::Escape($ProviderId))\]\r?\n.*?(?=^\[|\z)"
-    $section = @"
-[model_providers.$ProviderId]
-name = "$Name"
-base_url = "$BaseUrl"
-wire_api = "$WireApi"
-env_key = "$EnvKey"
-supports_websockets = false
-
-"@
-
-    if ($content -match $sectionPattern) {
-        $content = [regex]::Replace($content, $sectionPattern, $section)
-    } else {
-        if ($content -and -not $content.EndsWith("`n")) {
-            $content += "`r`n"
-        }
-        $content += "`r`n$section"
-    }
-
-    Set-Content -LiteralPath $script:CodexConfigPath -Value $content -Encoding UTF8
+    return
 }
 
 function Ensure-CodexBaseConfig {
-    if (-not (Test-Path -LiteralPath $script:CodexConfigPath)) {
-        New-Item -ItemType Directory -Force (Split-Path -Parent $script:CodexConfigPath) | Out-Null
-        $content = @"
-model_provider = "OpenAI"
-model = "gpt-5.5"
-model_reasoning_effort = "high"
-disable_response_storage = true
-network_access = "enabled"
-windows_wsl_setup_acknowledged = true
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "https://api.openai.com/v1"
-wire_api = "responses"
-env_key = "OPENAI_API_KEY"
-supports_websockets = false
-
-[windows]
-sandbox = "unelevated"
-
-[notice]
-fast_default_opt_out = true
-"@
-        Set-Content -LiteralPath $script:CodexConfigPath -Value $content -Encoding UTF8
-        return
-    }
-
-    $content = Get-Content -LiteralPath $script:CodexConfigPath -Raw -Encoding UTF8
-    if ([string]::IsNullOrWhiteSpace($content)) {
-        Remove-Item -LiteralPath $script:CodexConfigPath -Force
-        Ensure-CodexBaseConfig
-        return
-    }
-
-    $changed = $false
-    $prepend = @()
-    if ($content -notmatch '(?m)^model_provider\s*=') { $prepend += 'model_provider = "OpenAI"' }
-    if ($content -notmatch '(?m)^model\s*=') { $prepend += 'model = "gpt-5.5"' }
-    if ($content -notmatch '(?m)^model_reasoning_effort\s*=') { $prepend += 'model_reasoning_effort = "high"' }
-    if ($content -notmatch '(?m)^disable_response_storage\s*=') { $prepend += 'disable_response_storage = true' }
-    if ($content -notmatch '(?m)^network_access\s*=') { $prepend += 'network_access = "enabled"' }
-    if ($content -notmatch '(?m)^windows_wsl_setup_acknowledged\s*=') { $prepend += 'windows_wsl_setup_acknowledged = true' }
-    if ($prepend.Count -gt 0) {
-        $content = (($prepend -join "`r`n") + "`r`n" + $content)
-        $changed = $true
-    }
-
-    if ($content -notmatch '(?m)^\[model_providers\.OpenAI\]') {
-        if (-not $content.EndsWith("`n")) { $content += "`r`n" }
-        $content += @"
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "https://api.openai.com/v1"
-wire_api = "responses"
-env_key = "OPENAI_API_KEY"
-supports_websockets = false
-"@
-        $changed = $true
-    }
-
-    if ($content -notmatch '(?m)^\[windows\]') {
-        if (-not $content.EndsWith("`n")) { $content += "`r`n" }
-        $content += "`r`n[windows]`r`nsandbox = `"unelevated`"`r`n"
-        $changed = $true
-    }
-
-    if ($content -notmatch '(?m)^\[notice\]') {
-        if (-not $content.EndsWith("`n")) { $content += "`r`n" }
-        $content += "`r`n[notice]`r`nfast_default_opt_out = true`r`n"
-        $changed = $true
-    }
-
-    if ($changed) {
-        Set-Content -LiteralPath $script:CodexConfigPath -Value $content -Encoding UTF8
-    }
+    return
 }
 
 function Remove-CodexConfigProvider {
     param([Parameter(Mandatory = $true)][string]$ProviderId)
 
-    if (-not (Test-Path -LiteralPath $script:CodexConfigPath)) {
-        return
-    }
-
-    $content = Get-Content -LiteralPath $script:CodexConfigPath -Raw -Encoding UTF8
-    $sectionPattern = "(?ms)^\[model_providers\.$([regex]::Escape($ProviderId))\]\r?\n.*?(?=^\[|\z)"
-    $content = [regex]::Replace($content, $sectionPattern, "")
-    Set-Content -LiteralPath $script:CodexConfigPath -Value $content -Encoding UTF8
+    return
 }
 
 function Clear-CodexSelectionIfMatches {
@@ -1155,7 +1838,6 @@ function Remove-CodexCatalogProvider {
 
     $catalog.providers = @($catalog.providers | Where-Object { $_.id -ne $provider.id })
     Save-CodexProviderCatalog -Catalog $catalog | Out-Null
-    Remove-CodexConfigProvider -ProviderId $provider.id
     Clear-CodexSelectionIfMatches -ProviderId $provider.id
 }
 
@@ -1334,7 +2016,6 @@ function Set-CodexSelectionEnvironment {
         [switch]$Persist
     )
 
-    Ensure-CodexBaseConfig
     $provider = Get-CodexProviderById -ProviderName $ProviderName
     $catalogKey = $null
     if ($provider.keys) {
@@ -1363,6 +2044,10 @@ function Set-CodexSelectionEnvironment {
     $providerName = if ($provider.Name) { $provider.Name } else { $provider.name }
     $providerProfile = if ($provider.ProfileName) { $provider.ProfileName } else { $provider.profile }
     $providerBaseUrl = if ($provider.BaseUrl) { $provider.BaseUrl } else { $provider.baseUrl }
+    $providerWireApi = if ($provider.WireApi) { $provider.WireApi } else { $provider.wireApi }
+    if (-not $providerWireApi) {
+        $providerWireApi = "responses"
+    }
     $keyName = if ($catalogKey) { $catalogKey.name } else { $KeySourceId }
 
     $env:OMX_CODEX_SELECTED_PROVIDER = $providerId
@@ -1379,7 +2064,7 @@ function Set-CodexSelectionEnvironment {
 
     $configArgs = @()
     if (-not $providerProfile) {
-        $configArgs = @("-c", "model_provider=`"$providerId`"")
+        $configArgs = Get-CodexProviderConfigArgs -ProviderId $providerId -Name $providerName -BaseUrl $providerBaseUrl -EnvKey $targetEnvKey -WireApi $providerWireApi
     }
 
     $state = [ordered]@{
