@@ -1002,6 +1002,69 @@ function Get-SeriesModelDepths {
     return @($depths)
 }
 
+function Get-NormalizedReasoningEffortValues {
+    param($Values)
+
+    $normalized = @()
+    foreach ($depth in @($Values)) {
+        $value = ([string]$depth).Trim()
+        if ($value -and $script:ReasoningEffortValues -contains $value -and $normalized -notcontains $value) {
+            $normalized += $value
+        }
+    }
+    return @($normalized)
+}
+
+function Get-ExistingModelReasoningEfforts {
+    param([string]$Model)
+
+    $currentMap = $script:CodexSwitcherSettings.modelReasoningEfforts
+    if ($currentMap -is [System.Collections.IDictionary] -and $currentMap.Contains($Model)) {
+        return @($currentMap[$Model])
+    }
+    if ($currentMap -and $currentMap.PSObject.Properties.Name -contains $Model) {
+        return @($currentMap.$Model)
+    }
+    return @()
+}
+
+function Get-SeriesModelReasoningEffortMap {
+    param([string[]]$Models)
+
+    $map = [ordered]@{}
+    foreach ($series in @($script:SeriesRows)) {
+        foreach ($model in @($series.models)) {
+            $modelName = Get-SeriesModelName -Model $model
+            if (-not $modelName -or $map.Contains($modelName)) {
+                continue
+            }
+
+            $values = @(Get-NormalizedReasoningEffortValues -Values (Get-SeriesModelDepths -Model $model))
+            if ($values.Count -eq 0) {
+                $values = @(Get-NormalizedReasoningEffortValues -Values (Get-ExistingModelReasoningEfforts -Model $modelName))
+            }
+            if ($values.Count -eq 0) {
+                $values = @($script:ReasoningEffortValues)
+            }
+            $map[$modelName] = @($values)
+        }
+    }
+
+    foreach ($model in @($Models)) {
+        if (-not $model -or $map.Contains($model)) {
+            continue
+        }
+
+        $values = @(Get-NormalizedReasoningEffortValues -Values (Get-ExistingModelReasoningEfforts -Model $model))
+        if ($values.Count -eq 0) {
+            $values = @($script:ReasoningEffortValues)
+        }
+        $map[$model] = @($values)
+    }
+
+    return $map
+}
+
 function New-SeriesModelObject {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -1199,7 +1262,7 @@ function Save-ModelSeriesRows {
         $defaultModel = [string]$allModels[0]
     }
 
-    $modelReasoningEfforts = Get-EditedModelReasoningEffortMap -Models $allModels -EditedModel $null
+    $modelReasoningEfforts = Get-SeriesModelReasoningEffortMap -Models $allModels
     $script:CodexSwitcherSettings = Set-CodexSwitcherSettings -Models $allModels -ReasoningEfforts @($script:ReasoningEffortValues) -ModelReasoningEfforts $modelReasoningEfforts -ModelSeries @($script:SeriesRows) -DefaultModel $defaultModel -DefaultReasoningEffort $script:CodexSwitcherSettings.defaultReasoningEffort
     $script:VendorRows = @(Get-CodexModelVendorCatalog)
     Refresh-VendorChecklist

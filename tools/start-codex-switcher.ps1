@@ -124,6 +124,27 @@ function Get-CodexModelReasoningEfforts {
     param([string]$Model)
 
     $modelName = ([string]$Model).Trim()
+    foreach ($series in @($script:CodexSwitcherSettings.modelSeries)) {
+        foreach ($seriesModel in @($series.models)) {
+            $seriesModelName = if ($seriesModel -is [string]) { [string]$seriesModel } else { [string](Get-CodexObjectProperty -Object $seriesModel -Name "name") }
+            if ($seriesModelName -ne $modelName) {
+                continue
+            }
+
+            $depths = @((Get-CodexObjectProperty -Object $seriesModel -Name "reasoningDepths"))
+            $validDepths = @()
+            foreach ($depth in @($depths)) {
+                $value = ([string]$depth).Trim()
+                if ($value -and $script:CodexSwitcherSettings.reasoningEfforts -contains $value -and $validDepths -notcontains $value) {
+                    $validDepths += $value
+                }
+            }
+            if ($validDepths.Count -gt 0) {
+                return @($validDepths)
+            }
+        }
+    }
+
     $map = $script:CodexSwitcherSettings.modelReasoningEfforts
     if ($modelName) {
         if ($map -is [System.Collections.IDictionary] -and $map.Contains($modelName)) {
