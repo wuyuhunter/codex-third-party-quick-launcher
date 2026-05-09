@@ -1040,6 +1040,29 @@ function Refresh-SeriesDepthList {
     }
 }
 
+function Restore-SeriesModelDepthSelection {
+    param(
+        [string]$SeriesId,
+        [int]$ModelIndex,
+        [int]$DepthIndex
+    )
+
+    if ($SeriesId) {
+        for ($i = 0; $i -lt $script:SeriesRows.Count; $i++) {
+            if ($script:SeriesRows[$i].id -eq $SeriesId) {
+                $seriesList.SelectedIndex = $i
+                break
+            }
+        }
+    }
+    if ($ModelIndex -ge 0 -and $ModelIndex -lt $seriesModelsList.Items.Count) {
+        $seriesModelsList.SelectedIndex = $ModelIndex
+    }
+    if ($DepthIndex -ge 0 -and $DepthIndex -lt $seriesModelDepthsList.Items.Count) {
+        $seriesModelDepthsList.SelectedIndex = $DepthIndex
+    }
+}
+
 function Set-SeriesDepthFormFromSelection {
     if ($seriesModelDepthsList.SelectedIndex -lt 0) {
         $seriesDepthValueBox.Clear()
@@ -2130,27 +2153,32 @@ $deleteSeriesDepthButton.Add_Click({
 })
 
 $seriesDepthUpButton.Add_Click({
+    $seriesIndex = Get-SelectedSeriesIndex
     $modelIndex = Get-SelectedSeriesModelIndex
     $depthIndex = $seriesModelDepthsList.SelectedIndex
-    if ($modelIndex -lt 0 -or $depthIndex -le 0) { return }
+    if ($seriesIndex -lt 0 -or $modelIndex -lt 0 -or $depthIndex -le 0) { return }
     $models = @(Get-SeriesModelsFromUi)
+    $preferredSeriesId = $seriesIdBox.Text.Trim()
     $depths = @(Get-SeriesModelDepths -Model $models[$modelIndex])
     $current = $depths[$depthIndex]
     $depths[$depthIndex] = $depths[$depthIndex - 1]
     $depths[$depthIndex - 1] = $current
     $models[$modelIndex] = New-SeriesModelObject -Name (Get-SeriesModelName -Model $models[$modelIndex]) -Depths $depths
     $series = [pscustomobject]@{ id = $seriesIdBox.Text.Trim(); name = $seriesNameBox.Text.Trim(); defaultModel = [string]$seriesDefaultModelCombo.SelectedItem; models = @($models) }
+    $script:SeriesRows[$seriesIndex] = $series
     Refresh-SeriesModelList -Series $series
-    $seriesModelsList.SelectedIndex = $modelIndex
-    $seriesModelDepthsList.SelectedIndex = $depthIndex - 1
-    Set-Status "推理深度顺序已调整。请点击保存系列写入配置。"
+    Save-ModelSeriesRows -PreferredSeriesId $preferredSeriesId
+    Restore-SeriesModelDepthSelection -SeriesId $preferredSeriesId -ModelIndex $modelIndex -DepthIndex ($depthIndex - 1)
+    Set-Status "推理深度顺序已调整并保存。"
 })
 
 $seriesDepthDownButton.Add_Click({
+    $seriesIndex = Get-SelectedSeriesIndex
     $modelIndex = Get-SelectedSeriesModelIndex
     $depthIndex = $seriesModelDepthsList.SelectedIndex
-    if ($modelIndex -lt 0) { return }
+    if ($seriesIndex -lt 0 -or $modelIndex -lt 0) { return }
     $models = @(Get-SeriesModelsFromUi)
+    $preferredSeriesId = $seriesIdBox.Text.Trim()
     $depths = @(Get-SeriesModelDepths -Model $models[$modelIndex])
     if ($depthIndex -lt 0 -or $depthIndex -ge ($depths.Count - 1)) { return }
     $current = $depths[$depthIndex]
@@ -2158,10 +2186,11 @@ $seriesDepthDownButton.Add_Click({
     $depths[$depthIndex + 1] = $current
     $models[$modelIndex] = New-SeriesModelObject -Name (Get-SeriesModelName -Model $models[$modelIndex]) -Depths $depths
     $series = [pscustomobject]@{ id = $seriesIdBox.Text.Trim(); name = $seriesNameBox.Text.Trim(); defaultModel = [string]$seriesDefaultModelCombo.SelectedItem; models = @($models) }
+    $script:SeriesRows[$seriesIndex] = $series
     Refresh-SeriesModelList -Series $series
-    $seriesModelsList.SelectedIndex = $modelIndex
-    $seriesModelDepthsList.SelectedIndex = $depthIndex + 1
-    Set-Status "推理深度顺序已调整。请点击保存系列写入配置。"
+    Save-ModelSeriesRows -PreferredSeriesId $preferredSeriesId
+    Restore-SeriesModelDepthSelection -SeriesId $preferredSeriesId -ModelIndex $modelIndex -DepthIndex ($depthIndex + 1)
+    Set-Status "推理深度顺序已调整并保存。"
 })
 
 $exportConfigButton.Add_Click({ Export-CodexLauncherConfig })
