@@ -100,6 +100,8 @@ function Get-CodexModelMetadataArgs {
         "kimi-k2.6" = @{ Context = 262144; Compact = 210000; Output = 32768 }
         "kimi-k2.5" = @{ Context = 262144; Compact = 210000; Output = 32768 }
         "minimax2.7" = @{ Context = 131072; Compact = 100000; Output = 8192 }
+        "hunyuan-2.0-thinking-20251109" = @{ Context = 32768; Compact = 26000; Output = 8192 }
+        "mimo-v2.5-pro" = @{ Context = 32768; Compact = 26000; Output = 8192 }
         "moonshot-v1-auto" = @{ Context = 131072; Compact = 100000; Output = 8192 }
         "moonshot-v1-32k" = @{ Context = 32768; Compact = 26000; Output = 8192 }
         "moonshot-v1-8k" = @{ Context = 8192; Compact = 6500; Output = 4096 }
@@ -136,7 +138,7 @@ function Get-CodexModelReasoningEfforts {
     if ($value -match '^(gpt-|o[0-9]|codex-)') {
         return @("medium", "high", "xhigh", "low")
     }
-    if ($value -match '^qwen|^glm-|^kimi-|^moonshot-|^minimax') {
+    if ($value -match '^qwen|^glm-|^kimi-|^moonshot-|^minimax|^hunyuan-|^mimo-') {
         return @("medium")
     }
     if ($value -match '^deepseek-') {
@@ -150,7 +152,7 @@ function Get-CodexTransportModel {
     param([string]$Model)
 
     $value = ([string]$Model).Trim().ToLowerInvariant()
-    if ($value -match '^qwen|^deepseek-|^glm-|^kimi-|^moonshot-|^minimax') {
+    if ($value -match '^qwen|^deepseek-|^glm-|^kimi-|^moonshot-|^minimax|^hunyuan-|^mimo-') {
         return "gpt-5.4"
     }
     return [string]$Model
@@ -165,6 +167,8 @@ function Get-DomesticAdapterProviderSegment {
         "glm_bigmodel" { return "glm" }
         "kimi_moonshot" { return "kimi" }
         "minimax" { return "minimax" }
+        "tencent_hunyuan" { return "tencent" }
+        "xiaomi_mimo" { return "mimo" }
         default { return "" }
     }
 }
@@ -201,6 +205,8 @@ function Get-CodexDefaultModelForProvider {
         "glm_bigmodel" { return "glm-5.1" }
         "kimi_moonshot" { return "kimi-k2.6" }
         "minimax" { return "minimax2.7" }
+        "tencent_hunyuan" { return "hunyuan-2.0-thinking-20251109" }
+        "xiaomi_mimo" { return "mimo-v2.5-pro" }
         "openai" { return "gpt-5.5" }
         default { return [string]$script:CodexSwitcherSettings.defaultModel }
     }

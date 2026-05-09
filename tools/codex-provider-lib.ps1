@@ -5,7 +5,7 @@ $script:CodexSwitcherGitHub = "https://github.com/wuyuhunter/codex-third-party-q
 $script:CodexSwitcherGitee = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherUpdateManifestUrl = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/raw/main/update/manifest.json"
 $script:CodexSwitcherLicense = "MIT 协议"
-$script:DefaultCodexSwitcherModels = @("qwen3.6-plus", "qwen-plus", "qwen-max", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner", "glm-5.1", "glm-4-plus", "kimi-k2.6", "minimax2.7", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+$script:DefaultCodexSwitcherModels = @("qwen3.6-plus", "qwen-plus", "qwen-max", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner", "glm-5.1", "glm-4-plus", "kimi-k2.6", "minimax2.7", "hunyuan-2.0-thinking-20251109", "mimo-v2.5-pro", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
 $script:DefaultCodexSwitcherReasoningEfforts = @("medium", "high", "low", "xhigh")
 $script:DefaultCodexSwitcherPermissionMode = "safe"
 
@@ -46,6 +46,18 @@ function Get-DefaultCodexModelVendorCatalog {
             name = "MiniMax"
             defaultModel = "minimax2.7"
             models = @("minimax2.7")
+        }
+        [pscustomobject]@{
+            id = "tencent"
+            name = "Tencent Hunyuan / 混元"
+            defaultModel = "hunyuan-2.0-thinking-20251109"
+            models = @("hunyuan-2.0-thinking-20251109")
+        }
+        [pscustomobject]@{
+            id = "mimo"
+            name = "Xiaomi MiMo / 小米"
+            defaultModel = "mimo-v2.5-pro"
+            models = @("mimo-v2.5-pro")
         }
         [pscustomobject]@{
             id = "custom"
@@ -165,6 +177,8 @@ function Get-DefaultCodexModelReasoningEffortMap {
         "glm-4-plus" = @("medium")
         "kimi-k2.6" = @("medium")
         "minimax2.7" = @("medium")
+        "hunyuan-2.0-thinking-20251109" = @("medium")
+        "mimo-v2.5-pro" = @("medium")
         "moonshot-v1-auto" = @("medium")
         "moonshot-v1-32k" = @("medium")
         "moonshot-v1-8k" = @("medium")
@@ -194,6 +208,8 @@ function Infer-CodexModelVendorId {
     if ($id -match 'glm|bigmodel' -or $name -match 'glm|智谱' -or $baseUrl -match 'bigmodel') { return "glm" }
     if ($id -match 'kimi|moonshot' -or $name -match 'kimi|moonshot' -or $baseUrl -match 'moonshot') { return "kimi" }
     if ($id -match 'minimax' -or $name -match 'minimax' -or $baseUrl -match 'minimax') { return "minimax" }
+    if ($id -match 'tencent|hunyuan|tokenhub' -or $name -match 'tencent|hunyuan|混元|腾讯' -or $baseUrl -match 'tokenhub|tencent') { return "tencent" }
+    if ($id -match 'mimo|xiaomi' -or $name -match 'mimo|xiaomi|小米' -or $baseUrl -match 'xiaomimimo') { return "mimo" }
     if ($id -match 'openai' -or $name -match 'openai' -or $baseUrl -match 'openai') { return "openai" }
     return "custom"
 }

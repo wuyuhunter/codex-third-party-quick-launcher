@@ -35,6 +35,15 @@ const providers = {
     baseUrl: "https://api.minimax.chat/v1",
     wireApi: "chat",
   },
+  tencent: {
+    baseUrl: "https://tokenhub.tencentmaas.com/v1",
+    wireApi: "chat",
+  },
+  mimo: {
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    wireApi: "chat",
+    authHeader: "api-key",
+  },
 };
 
 function readBody(req) {
@@ -200,10 +209,13 @@ async function callChat(provider, auth, request, upstreamModel) {
     body.thinking = { type: "disabled" };
   }
 
+  const upstreamAuth = upstream.authHeader === "api-key"
+    ? String(auth || "").replace(/^Bearer\s+/i, "")
+    : auth;
   const response = await fetch(`${upstream.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
-      "authorization": auth,
+      [upstream.authHeader || "authorization"]: upstreamAuth,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
