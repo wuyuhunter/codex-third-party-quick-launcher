@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.1
+
+- 修复干净便携包在未配置本地 KEY 时会自动继承全局 `OPENAI_API_KEY` 或 `~\.codex\auth.json` 的问题。
+- 修复旧启动器进程遗留的 `OMX_CODEX_SELECTED_*` 可能跨目录、跨版本污染当前启动选择的问题；当前选择只在同一 runtime root 内可信。
+- `-NoUi` 启动在没有当前便携包 catalog KEY 时会明确失败，提示先到配置页添加 KEY，不再自动落到 OpenAI provider。
+- 保持 no-config 路线：provider 定义仍通过本次进程 `-c model_providers.<id>.*` 注入，不写入 `~\.codex\config.toml`。
+- 启动时仍会把用户显式选择的本地 catalog KEY 镜像到 Codex CLI 兼容的 `OPENAI_API_KEY`，但不反向把全局 KEY 当作默认 KEY。
+
 ## v0.5.0
 
 - 将当前国产模型适配实验线升级为 `v0.5.0` 发布基准。

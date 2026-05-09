@@ -11,7 +11,7 @@ function readPort() {
 
 const PORT = readPort();
 const ADAPTER_NAME = "codex-domestic-responses-adapter";
-const ADAPTER_VERSION = "v0.5.0";
+const ADAPTER_VERSION = "v0.5.1";
 const HEALTH_TOKEN = process.env.DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN || "";
 
 const providers = {

@@ -1,9 +1,9 @@
 {
-  "version": "0.5.0",
-  "displayVersion": "v0.5.0",
-  "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/releases/download/v0.5.0/CodexQuickLauncher-v0.5.0.zip",
-  "sha256": "3B8DBB55E5EF7D4208B070614B3BA789573C5AA462081482470B96FB1B560D9F",
+  "version": "0.5.1",
+  "displayVersion": "v0.5.1",
+  "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/releases/download/v0.5.1/CodexQuickLauncher-v0.5.1.zip",
+  "sha256": "CD7B6AAA01322AF47D9308398209598EB0489ECFE13D235A9E60D738A834D012",
   "notesUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/blob/master/CHANGELOG.md",
-  "publishedAt": "2026-05-09T03:20:00+08:00",
-  "notes": "v0.5.0 domestic-model baseline: keeps the no-config launch path, improves model series/version/depth configuration, adds MiniMax support, and keeps manual update checking inside the About dialog."
+  "publishedAt": "2026-05-09T14:16:43+08:00",
+  "notes": "v0.5.1 fixes startup key isolation: clean portable packages no longer inherit global OpenAI keys or stale launcher selection variables."
 }

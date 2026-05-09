@@ -6,6 +6,8 @@ This repository is organized as a small portable Windows package.
 
 - `Codex 便捷启动器.exe`: double-click entry for ordinary users. It opens the PowerShell launcher in `tools`.
 - `tools/`: application scripts. This is the actual source code for installer, launcher UI, provider management, connectivity tests, and Codex argument wiring.
+- `tools/domestic-responses-adapter.js`: local adapter for domestic or OpenAI-compatible Chat Completions providers that need Responses-compatible transport.
+- `tools/update-codex-quick-launcher.ps1`: helper invoked by the manual update flow after package download and hash verification.
 - `src/launcher/`: C# source for the small Windows exe wrapper.
 - `codex-quick-launcher.portable`: marker file. It tells the scripts to store runtime config in this folder instead of the user's global OMX directory.
 - `state/codex-quick-launcher-config.example.json`: safe example config without real keys.
