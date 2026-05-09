@@ -2554,6 +2554,9 @@ if (-not $Model) {
         }
     }
 }
+if (-not $KeySource) {
+    throw "当前启动器没有为所选模型服务配置本地 KEY。请先打开「配置」添加 KEY，再启动 Codex。"
+}
 if (-not $ReasoningEffort) { $ReasoningEffort = $script:CodexSwitcherSettings.defaultReasoningEffort }
 if (-not $PermissionMode) { $PermissionMode = $script:DefaultCodexSwitcherPermissionMode }
 $ReasoningEffort = Resolve-CodexReasoningEffortForModel -Model $Model -ReasoningEffort $ReasoningEffort

@@ -1,5 +1,5 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.5.0"
+$script:CodexSwitcherVersion = "v0.5.1"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:CodexSwitcherGitHub = "https://github.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherGitee = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
@@ -1174,41 +1174,10 @@ function Get-CodexKeySources {
 
 function New-CodexCatalogFromExisting {
     $config = Get-OmxCodexConfig
-    $keys = @(Get-CodexKeySources)
     $providers = @()
 
     foreach ($provider in $config.Providers) {
         $providerKeys = @()
-        $preferredEnv = if ($provider.EnvKey) { $provider.EnvKey } else { "OPENAI_API_KEY" }
-        $matchingKeys = @($keys | Where-Object { $_.EnvVar -eq $preferredEnv })
-        if ($matchingKeys.Count -eq 0 -and ($provider.RequiresOpenAIAuth -or $provider.Id -eq "OpenAI")) {
-            $matchingKeys = @($keys | Where-Object { $_.EnvVar -eq "OPENAI_API_KEY" })
-        }
-
-        $index = 1
-        foreach ($key in $matchingKeys) {
-            $keyName = switch -Wildcard ($key.Id) {
-                "auth:*" { "auth-json"; break }
-                "dpapi:*" { "local-dpapi"; break }
-                "file:*" { "nas-file"; break }
-                "env:User:*" { "user-env"; break }
-                "env:Process:*" { "process-env"; break }
-                "env:Machine:*" { "machine-env"; break }
-                default { "key-$index" }
-            }
-
-            $keyId = ConvertTo-CatalogId "$keyName-$($key.Prefix)"
-            $providerKeys += [ordered]@{
-                id = $keyId
-                name = $keyName
-                source = $key.Id
-                envKey = $key.EnvVar
-                prefix = $key.Prefix
-                length = $key.Length
-                createdAt = (Get-Date -Format o)
-            }
-            $index++
-        }
 
         $providers += [ordered]@{
             id = $provider.Id
@@ -1657,19 +1626,12 @@ function Resolve-CatalogKey {
         return [string]$Key.apiKey
     }
 
-    if ($Key.source -and $Key.source -match '^(auth:|env:|dpapi:|file:)') {
-        return Resolve-CodexKeySource -SourceId $Key.source
+    if ($Key.source -and ([string]$Key.source) -match '^(auth:|env:)') {
+        throw "Catalog key '$($Key.id)' uses a global key source. Re-save the KEY in this launcher before starting Codex."
     }
 
     if ($Key.secretPath) {
         return Get-DpapiSecret -SecretPath ([Environment]::ExpandEnvironmentVariables([string]$Key.secretPath))
-    }
-
-    $fallback = Get-CodexKeySources | Where-Object {
-        $_.EnvVar -eq $Key.envKey -and $_.Prefix -eq $Key.prefix -and $_.Length -eq $Key.length
-    } | Select-Object -First 1
-    if ($fallback) {
-        return Resolve-CodexKeySource -SourceId $fallback.Id
     }
 
     $secretPath = Get-CatalogSecretPath -ProviderId $Provider.id -KeyId $Key.id
@@ -1975,23 +1937,6 @@ function Get-DefaultKeySourceForProvider {
         if ($firstKey) { return [string]$firstKey.id }
     }
 
-    $sources = @(Get-CodexKeySources)
-    if ($Provider.EnvKey) {
-        $match = $sources | Where-Object { $_.EnvVar -eq $Provider.EnvKey } | Select-Object -First 1
-        if ($match) { return $match.Id }
-    }
-
-    if ($Provider.RequiresOpenAIAuth -or $Provider.Id -eq "OpenAI" -or $Provider.Name -eq "OpenAI") {
-        $match = $sources | Where-Object { $_.Id -eq "auth:OPENAI_API_KEY" } | Select-Object -First 1
-        if ($match) { return $match.Id }
-        $match = $sources | Where-Object { $_.EnvVar -eq "OPENAI_API_KEY" } | Select-Object -First 1
-        if ($match) { return $match.Id }
-    }
-
-    if ($sources.Count -gt 0) {
-        return $sources[0].Id
-    }
-
     return ""
 }
 
@@ -2027,11 +1972,10 @@ function Set-CodexSelectionEnvironment {
         $catalogKey = Get-CatalogKeyById -Provider $provider -KeyName $KeySourceId
     }
 
-    if ($catalogKey) {
-        $apiKey = Resolve-CatalogKey -Provider $provider -Key $catalogKey
-    } else {
-        $apiKey = Resolve-CodexKeySource -SourceId $KeySourceId
+    if (-not $catalogKey) {
+        throw "Selected key source is not in the current launcher catalog: $KeySourceId"
     }
+    $apiKey = Resolve-CatalogKey -Provider $provider -Key $catalogKey
     if (-not $apiKey) {
         throw "Selected key source has no key: $KeySourceId"
     }
@@ -2062,6 +2006,7 @@ function Set-CodexSelectionEnvironment {
     $env:OMX_CODEX_SELECTED_KEY_NAME = $keyName
     $env:OMX_CODEX_SELECTED_BASE_URL = $providerBaseUrl
     $env:OMX_CODEX_SELECTED_KEY_PREFIX = Get-SecretPrefix $apiKey
+    $env:OMX_CODEX_SELECTED_RUNTIME_ROOT = $script:CodexSwitcherRuntimeRoot
     if ($Model) { $env:OMX_CODEX_SELECTED_MODEL = $Model }
     if ($ReasoningEffort) { $env:OMX_CODEX_SELECTED_REASONING_EFFORT = $ReasoningEffort }
     $permissionMode = Normalize-CodexPermissionMode $PermissionMode
@@ -2090,6 +2035,7 @@ function Set-CodexSelectionEnvironment {
         switcherVersion = $script:CodexSwitcherVersion
         switcherAuthors = $script:CodexSwitcherAuthors
         switcherPortable = $script:CodexSwitcherIsPortable
+        runtimeRoot = $script:CodexSwitcherRuntimeRoot
         selectedAt = (Get-Date -Format o)
     }
 
@@ -2118,6 +2064,11 @@ function Set-CodexSelectionEnvironment {
 
 function Get-CurrentCodexSelection {
     if ($env:OMX_CODEX_SELECTED_PROVIDER -and $env:OMX_CODEX_SELECTED_KEY_SOURCE) {
+        if (-not $env:OMX_CODEX_SELECTED_RUNTIME_ROOT -or
+            ([string]$env:OMX_CODEX_SELECTED_RUNTIME_ROOT).TrimEnd('\') -ne ([string]$script:CodexSwitcherRuntimeRoot).TrimEnd('\')) {
+            return $null
+        }
+
         return [pscustomobject]@{
             Provider = $env:OMX_CODEX_SELECTED_PROVIDER
             KeySource = $env:OMX_CODEX_SELECTED_KEY_SOURCE

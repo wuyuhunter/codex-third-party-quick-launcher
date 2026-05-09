@@ -6,9 +6,11 @@ This project is intended to be published as a clean portable Windows package.
 
 - `Codex 便捷启动器.exe`
 - `启动 Codex 便捷启动器.cmd`
+- `启动 国产模型适配器.cmd`
 - `codex-quick-launcher.portable`
 - `.gitignore`
 - `README.md`
+- `国产模型实验版说明.md`
 - `BUILD.md`
 - `RELEASE_CONTENTS.md`
 - `CHANGELOG.md`
@@ -19,9 +21,11 @@ This project is intended to be published as a clean portable Windows package.
 - `PROJECT_STRUCTURE.md`
 - `tools\build-launcher.ps1`
 - `tools\codex-provider-lib.ps1`
+- `tools\domestic-responses-adapter.js`
 - `tools\install-codex-switcher-prereqs.ps1`
 - `tools\manage-codex-providers.ps1`
 - `tools\start-codex-switcher.ps1`
+- `tools\update-codex-quick-launcher.ps1`
 - `src\launcher\CodexSwitcherLauncher.csproj`
 - `src\launcher\Program.cs`
 - `src\launcher\codex-danger.ico`
