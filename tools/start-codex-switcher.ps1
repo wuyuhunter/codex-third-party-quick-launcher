@@ -100,6 +100,8 @@ function Get-CodexModelMetadataArgs {
         "kimi-k2.6" = @{ Context = 262144; Compact = 210000; Output = 32768 }
         "kimi-k2.5" = @{ Context = 262144; Compact = 210000; Output = 32768 }
         "minimax2.7" = @{ Context = 131072; Compact = 100000; Output = 8192 }
+        "hunyuan-2.0-thinking-20251109" = @{ Context = 32768; Compact = 26000; Output = 8192 }
+        "mimo-v2.5-pro" = @{ Context = 32768; Compact = 26000; Output = 8192 }
         "moonshot-v1-auto" = @{ Context = 131072; Compact = 100000; Output = 8192 }
         "moonshot-v1-32k" = @{ Context = 32768; Compact = 26000; Output = 8192 }
         "moonshot-v1-8k" = @{ Context = 8192; Compact = 6500; Output = 4096 }
@@ -122,6 +124,27 @@ function Get-CodexModelReasoningEfforts {
     param([string]$Model)
 
     $modelName = ([string]$Model).Trim()
+    foreach ($series in @($script:CodexSwitcherSettings.modelSeries)) {
+        foreach ($seriesModel in @($series.models)) {
+            $seriesModelName = if ($seriesModel -is [string]) { [string]$seriesModel } else { [string](Get-CodexObjectProperty -Object $seriesModel -Name "name") }
+            if ($seriesModelName -ne $modelName) {
+                continue
+            }
+
+            $depths = @((Get-CodexObjectProperty -Object $seriesModel -Name "reasoningDepths"))
+            $validDepths = @()
+            foreach ($depth in @($depths)) {
+                $value = ([string]$depth).Trim()
+                if ($value -and $script:CodexSwitcherSettings.reasoningEfforts -contains $value -and $validDepths -notcontains $value) {
+                    $validDepths += $value
+                }
+            }
+            if ($validDepths.Count -gt 0) {
+                return @($validDepths)
+            }
+        }
+    }
+
     $map = $script:CodexSwitcherSettings.modelReasoningEfforts
     if ($modelName) {
         if ($map -is [System.Collections.IDictionary] -and $map.Contains($modelName)) {
@@ -136,7 +159,7 @@ function Get-CodexModelReasoningEfforts {
     if ($value -match '^(gpt-|o[0-9]|codex-)') {
         return @("medium", "high", "xhigh", "low")
     }
-    if ($value -match '^qwen|^glm-|^kimi-|^moonshot-|^minimax') {
+    if ($value -match '^qwen|^glm-|^kimi-|^moonshot-|^minimax|^hunyuan-|^mimo-') {
         return @("medium")
     }
     if ($value -match '^deepseek-') {
@@ -150,7 +173,7 @@ function Get-CodexTransportModel {
     param([string]$Model)
 
     $value = ([string]$Model).Trim().ToLowerInvariant()
-    if ($value -match '^qwen|^deepseek-|^glm-|^kimi-|^moonshot-|^minimax') {
+    if ($value -match '^qwen|^deepseek-|^glm-|^kimi-|^moonshot-|^minimax|^hunyuan-|^mimo-') {
         return "gpt-5.4"
     }
     return [string]$Model
@@ -165,6 +188,8 @@ function Get-DomesticAdapterProviderSegment {
         "glm_bigmodel" { return "glm" }
         "kimi_moonshot" { return "kimi" }
         "minimax" { return "minimax" }
+        "tencent_hunyuan" { return "tencent" }
+        "xiaomi_mimo" { return "mimo" }
         default { return "" }
     }
 }
@@ -201,6 +226,8 @@ function Get-CodexDefaultModelForProvider {
         "glm_bigmodel" { return "glm-5.1" }
         "kimi_moonshot" { return "kimi-k2.6" }
         "minimax" { return "minimax2.7" }
+        "tencent_hunyuan" { return "hunyuan-2.0-thinking-20251109" }
+        "xiaomi_mimo" { return "mimo-v2.5-pro" }
         "openai" { return "gpt-5.5" }
         default { return [string]$script:CodexSwitcherSettings.defaultModel }
     }
@@ -545,6 +572,18 @@ function Get-CodexCommandPath {
 
 function Get-CodexInstallerStatus {
     $npmMirror = "https://registry.npmmirror.com"
+    $systemRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "C:\Windows" }
+    $vcRuntime = (
+        (Test-Path -LiteralPath (Join-Path $systemRoot "System32\vcruntime140.dll")) -and
+        (Test-Path -LiteralPath (Join-Path $systemRoot "System32\vcruntime140_1.dll")) -and
+        (Test-Path -LiteralPath (Join-Path $systemRoot "System32\msvcp140.dll"))
+    )
+    $executionPolicyOk = $false
+    try {
+        $executionPolicyOk = ([string](Get-ExecutionPolicy -Scope CurrentUser)) -in @("RemoteSigned", "Unrestricted", "Bypass")
+    } catch {
+        $executionPolicyOk = $false
+    }
     $winget = Get-CodexCommandPath -Names @("winget.exe", "winget")
     $pwsh = Get-CodexCommandPath -Names @("pwsh.exe", "pwsh")
     $wt = Get-CodexCommandPath -Names @("wt.exe", "wt")
@@ -559,13 +598,15 @@ function Get-CodexInstallerStatus {
 
     @(
         [pscustomobject]@{ Step = "1"; Name = "系统 PowerShell"; Action = "Win10 / Win11 自带，用来打开本工具"; Status = "已内置" }
-        [pscustomobject]@{ Step = "2"; Name = "Node.js LTS / npm"; Action = "从 Node 镜像源下载安装"; Status = if ($node -and $npm) { "已安装" } else { "待安装" } }
-        [pscustomobject]@{ Step = "3"; Name = "npm 镜像源"; Action = "使用 registry.npmmirror.com"; Status = if (-not $npm) { "等待 npm" } elseif ($registry -eq $npmMirror) { "已配置" } elseif ($registry) { "待配置：$registry" } else { "待配置" } }
-        [pscustomobject]@{ Step = "4"; Name = "Codex CLI"; Action = "npm 全局安装 @openai/codex"; Status = if ($codex) { "已安装" } else { "待安装" } }
-        [pscustomobject]@{ Step = "5"; Name = "Codex 初始配置"; Action = "预创建 config.toml，跳过首次配置界面"; Status = if ($codexConfig) { "已初始化" } else { "待初始化" } }
-        [pscustomobject]@{ Step = "6"; Name = "Windows Terminal"; Action = "标签页终端，方便查看安装和 Codex 输出"; Status = if ($wt) { "已安装" } else { "完整安装可补" } }
-        [pscustomobject]@{ Step = "7"; Name = "PowerShell 7"; Action = "新版 PowerShell，供高级脚本和部分工具使用"; Status = if ($pwsh) { "已安装" } else { "完整安装可补" } }
-        [pscustomobject]@{ Step = "8"; Name = "服务和 KEY"; Action = "在维护页填写 base_url 和 KEY"; Status = "核心安装后配置" }
+        [pscustomobject]@{ Step = "2"; Name = "VC++ 运行库"; Action = "安装 Visual C++ Redistributable，修复 vcruntime140.dll 缺失"; Status = if ($vcRuntime) { "已安装" } else { "待安装" } }
+        [pscustomobject]@{ Step = "3"; Name = "PowerShell 执行策略"; Action = "CurrentUser 设置为 RemoteSigned，允许 npm.ps1 正常运行"; Status = if ($executionPolicyOk) { "已允许" } else { "待设置" } }
+        [pscustomobject]@{ Step = "4"; Name = "Node.js LTS / npm"; Action = "从 Node 镜像源下载安装"; Status = if ($node -and $npm) { "已安装" } else { "待安装" } }
+        [pscustomobject]@{ Step = "5"; Name = "npm 镜像源"; Action = "使用 registry.npmmirror.com"; Status = if (-not $npm) { "等待 npm" } elseif ($registry -eq $npmMirror) { "已配置" } elseif ($registry) { "待配置：$registry" } else { "待配置" } }
+        [pscustomobject]@{ Step = "6"; Name = "Codex CLI"; Action = "npm 全局安装 @openai/codex"; Status = if ($codex) { "已安装" } else { "待安装" } }
+        [pscustomobject]@{ Step = "7"; Name = "Codex 初始配置"; Action = "预创建 config.toml，跳过首次配置界面"; Status = if ($codexConfig) { "已初始化" } else { "待初始化" } }
+        [pscustomobject]@{ Step = "8"; Name = "Windows Terminal"; Action = "标签页终端，方便查看安装和 Codex 输出"; Status = if ($wt) { "已安装" } else { "完整安装可补" } }
+        [pscustomobject]@{ Step = "9"; Name = "PowerShell 7"; Action = "新版 PowerShell，供高级脚本和部分工具使用"; Status = if ($pwsh) { "已安装" } else { "完整安装可补" } }
+        [pscustomobject]@{ Step = "10"; Name = "服务和 KEY"; Action = "在维护页填写 base_url 和 KEY"; Status = "核心安装后配置" }
     )
 }
 
@@ -955,7 +996,7 @@ function Show-CodexInstallerUi {
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="安装运行环境" FontSize="22" FontWeight="SemiBold"/>
-            <TextBlock Text="从空白 Win10 / Win11 到可启动 Codex：使用镜像源安装 Node.js/npm、配置 npm 镜像、安装 Codex CLI。Windows Terminal 用来更方便查看终端输出，PowerShell 7 供高级脚本和部分工具使用。"
+            <TextBlock Text="从空白 Win10 / Win11 到可启动 Codex：补齐 VC++ 运行库、设置 PowerShell 当前用户执行策略、安装 Node.js/npm、配置 npm 镜像、安装 Codex CLI。Windows Terminal 用来更方便查看终端输出，PowerShell 7 供高级脚本和部分工具使用。"
                        Margin="0,6,0,0"
                        Foreground="#64748B"
                        TextWrapping="Wrap"
@@ -1058,7 +1099,7 @@ function Show-CodexInstallerUi {
     $refreshView = {
         $checklist.ItemsSource = $null
         $checklist.ItemsSource = @(Get-CodexInstallerStatus)
-        $infoBox.Text = "核心安装：从 Node 镜像源安装 Node.js LTS/npm、配置 npm 镜像为 https://registry.npmmirror.com、安装 @openai/codex，并预创建 Codex config.toml。完整安装：先完成核心安装，再补 Windows Terminal（标签页终端，方便看输出）和 PowerShell 7（高级脚本环境）。"
+        $infoBox.Text = "核心安装：安装 Visual C++ Redistributable、把 PowerShell CurrentUser 执行策略设为 RemoteSigned、从 Node 镜像源安装 Node.js LTS/npm、配置 npm 镜像为 https://registry.npmmirror.com、安装 @openai/codex，并预创建 Codex config.toml。完整安装：先完成核心安装，再补 Windows Terminal（标签页终端，方便看输出）和 PowerShell 7（高级脚本环境）。"
     }
 
     function Start-InstallerTerminal {
@@ -2665,7 +2706,5 @@ try {
 if ($codexExitCode -ne 0) {
     Write-Host "Codex exited with code $codexExitCode." -ForegroundColor Yellow
 }
-
-
 
 

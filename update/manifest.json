@@ -1,9 +1,9 @@
 {
-  "version": "0.5.1",
-  "displayVersion": "v0.5.1",
-  "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/releases/download/v0.5.1/CodexQuickLauncher-v0.5.1.zip",
-  "sha256": "CD7B6AAA01322AF47D9308398209598EB0489ECFE13D235A9E60D738A834D012",
-  "notesUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/blob/master/CHANGELOG.md",
-  "publishedAt": "2026-05-09T14:16:43+08:00",
-  "notes": "v0.5.1 fixes startup key isolation: clean portable packages no longer inherit global OpenAI keys or stale launcher selection variables."
+  "version": "0.5.5",
+  "displayVersion": "v0.5.5",
+  "packageUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/releases/download/v0.5.5/CodexQuickLauncher-v0.5.5.zip",
+  "sha256": "86120586D7E2E3609A83ECB6CCE1EEE04A741384E21A95FB34B8CB41712E2A31",
+  "notesUrl": "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/blob/main/CHANGELOG.md",
+  "publishedAt": "2026-05-17T23:23:47+08:00",
+  "notes": "v0.5.5 improves first-run Windows setup by installing the Visual C++ runtime, setting the current-user PowerShell execution policy for npm scripts, and rebuilding the launcher wrapper with the Windows built-in .NET Framework compiler."
 }

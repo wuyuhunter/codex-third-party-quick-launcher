@@ -11,7 +11,7 @@ function readPort() {
 
 const PORT = readPort();
 const ADAPTER_NAME = "codex-domestic-responses-adapter";
-const ADAPTER_VERSION = "v0.5.1";
+const ADAPTER_VERSION = "v0.5.5";
 const HEALTH_TOKEN = process.env.DOMESTIC_RESPONSES_ADAPTER_HEALTH_TOKEN || "";
 
 const providers = {
@@ -35,6 +35,15 @@ const providers = {
     baseUrl: "https://api.minimax.chat/v1",
     wireApi: "chat",
   },
+  tencent: {
+    baseUrl: "https://tokenhub.tencentmaas.com/v1",
+    wireApi: "chat",
+  },
+  mimo: {
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    wireApi: "chat",
+    authHeader: "api-key",
+  },
 };
 
 function readBody(req) {
@@ -45,27 +54,6 @@ function readBody(req) {
     req.on("end", () => resolve(data));
     req.on("error", reject);
   });
-}
-
-function normalizeInput(input) {
-  if (typeof input === "string") {
-    return [{ role: "user", content: input }];
-  }
-  if (Array.isArray(input)) {
-    return input.map(item => {
-      if (typeof item === "string") {
-        return { role: "user", content: item };
-      }
-      if (item && item.role && item.content) {
-        return { role: item.role, content: flattenContent(item.content) };
-      }
-      if (item && item.type === "message") {
-        return { role: item.role || "user", content: flattenContent(item.content) };
-      }
-      return { role: "user", content: JSON.stringify(item) };
-    });
-  }
-  return [{ role: "user", content: JSON.stringify(input ?? "") }];
 }
 
 function normalizeRole(role) {
@@ -100,16 +88,104 @@ function flattenContent(content) {
   return String(content ?? "");
 }
 
-function normalizeChatMessages(provider, request) {
-  const messages = normalizeInput(request.input).map(message => ({
-    ...message,
-    role: normalizeRole(message.role),
+function normalizeToolArguments(args) {
+  if (typeof args === "string") {
+    return args;
+  }
+  return JSON.stringify(args ?? {});
+}
+
+function appendInputItem(messages, item) {
+  if (typeof item === "string") {
+    messages.push({ role: "user", content: item });
+    return;
+  }
+
+  if (item && item.type === "function_call") {
+    messages.push({
+      role: "assistant",
+      content: "",
+      tool_calls: [{
+        id: item.call_id || item.id || `call_${randomUUID().replace(/-/g, "")}`,
+        type: "function",
+        function: {
+          name: item.name || "",
+          arguments: normalizeToolArguments(item.arguments),
+        },
+      }],
+    });
+    return;
+  }
+
+  if (item && item.type === "function_call_output") {
+    messages.push({
+      role: "tool",
+      tool_call_id: item.call_id || item.id || "",
+      content: flattenContent(item.output ?? item.content ?? ""),
+    });
+    return;
+  }
+
+  if (item && item.type === "message") {
+    messages.push({
+      role: normalizeRole(item.role || "user"),
+      content: flattenContent(item.content),
+    });
+    return;
+  }
+
+  if (item && item.role && item.content !== undefined) {
+    messages.push({
+      role: normalizeRole(item.role),
+      content: flattenContent(item.content),
+    });
+    return;
+  }
+
+  messages.push({ role: "user", content: JSON.stringify(item ?? "") });
+}
+
+function appendFunctionCallGroup(messages, items) {
+  const toolCalls = items.map(item => ({
+    id: item.call_id || item.id || `call_${randomUUID().replace(/-/g, "")}`,
+    type: "function",
+    function: {
+      name: item.name || "",
+      arguments: normalizeToolArguments(item.arguments),
+    },
   }));
+  messages.push({
+    role: "assistant",
+    content: "",
+    tool_calls: toolCalls,
+  });
+}
+
+function normalizeChatMessages(provider, request) {
+  const messages = [];
   if (request.instructions) {
-    messages.unshift({
+    messages.push({
       role: "system",
       content: flattenContent(request.instructions),
     });
+  }
+  if (Array.isArray(request.input)) {
+    for (let index = 0; index < request.input.length; index++) {
+      const item = request.input[index];
+      if (item && item.type === "function_call") {
+        const group = [];
+        while (index < request.input.length && request.input[index] && request.input[index].type === "function_call") {
+          group.push(request.input[index]);
+          index += 1;
+        }
+        index -= 1;
+        appendFunctionCallGroup(messages, group);
+        continue;
+      }
+      appendInputItem(messages, item);
+    }
+  } else {
+    appendInputItem(messages, request.input);
   }
 
   if (provider !== "minimax") {
@@ -125,6 +201,38 @@ function normalizeChatMessages(provider, request) {
     role: "system",
     content: systemMessages.map(message => flattenContent(message.content)).filter(Boolean).join("\n\n"),
   }, ...otherMessages];
+}
+
+function normalizeChatTools(tools) {
+  if (!Array.isArray(tools)) {
+    return [];
+  }
+  return tools
+    .filter(tool => tool && tool.type === "function" && tool.name)
+    .map(tool => {
+      const fn = {
+        name: tool.name,
+        description: tool.description || "",
+        parameters: tool.parameters || { type: "object", properties: {} },
+      };
+      if (typeof tool.strict === "boolean") {
+        fn.strict = tool.strict;
+      }
+      return { type: "function", function: fn };
+    });
+}
+
+function normalizeChatToolChoice(choice) {
+  if (!choice || choice === "auto" || choice === "none" || choice === "required") {
+    return choice;
+  }
+  if (typeof choice === "object" && choice.type === "function") {
+    const name = choice.name || (choice.function && choice.function.name);
+    if (name) {
+      return { type: "function", function: { name } };
+    }
+  }
+  return undefined;
 }
 
 function cleanChatText(provider, text) {
@@ -192,18 +300,35 @@ async function callChat(provider, auth, request, upstreamModel) {
   if (request.max_output_tokens) {
     body.max_tokens = request.max_output_tokens;
   }
+  const tools = normalizeChatTools(request.tools);
+  if (tools.length) {
+    body.tools = tools;
+    const toolChoice = normalizeChatToolChoice(request.tool_choice);
+    if (toolChoice) {
+      body.tool_choice = toolChoice;
+    }
+    if (typeof request.parallel_tool_calls === "boolean") {
+      body.parallel_tool_calls = request.parallel_tool_calls;
+    }
+  }
 
   if (provider === "glm" && String(effectiveModel || "").startsWith("glm-5.1")) {
+    body.thinking = { type: "disabled" };
+  }
+  if (provider === "deepseek" && tools.length) {
     body.thinking = { type: "disabled" };
   }
   if (isKimiK2) {
     body.thinking = { type: "disabled" };
   }
 
+  const upstreamAuth = upstream.authHeader === "api-key"
+    ? String(auth || "").replace(/^Bearer\s+/i, "")
+    : auth;
   const response = await fetch(`${upstream.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
-      "authorization": auth,
+      [upstream.authHeader || "authorization"]: upstreamAuth,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -217,30 +342,55 @@ async function callChat(provider, auth, request, upstreamModel) {
   const json = JSON.parse(text);
   const choice = json.choices && json.choices[0];
   const message = choice && choice.message ? choice.message : {};
-  return cleanChatText(provider, message.content || message.reasoning_content || "");
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length) {
+    return {
+      type: "tool_calls",
+      toolCalls: message.tool_calls.map(call => ({
+        id: call.id || `call_${randomUUID().replace(/-/g, "")}`,
+        name: call.function && call.function.name ? call.function.name : call.name || "",
+        arguments: call.function && call.function.arguments !== undefined
+          ? normalizeToolArguments(call.function.arguments)
+          : normalizeToolArguments(call.arguments),
+      })),
+    };
+  }
+  return {
+    type: "text",
+    text: cleanChatText(provider, message.content || message.reasoning_content || ""),
+  };
 }
 
-function responsePayload(model, text) {
+function responsePayload(model, result) {
   const responseId = `resp_${randomUUID().replace(/-/g, "")}`;
-  const messageId = `msg_${randomUUID().replace(/-/g, "")}`;
+  const value = typeof result === "string" ? { type: "text", text: result } : (result || { type: "text", text: "" });
+  const output = value.type === "tool_calls"
+    ? value.toolCalls.map(call => ({
+      id: `fc_${randomUUID().replace(/-/g, "")}`,
+      type: "function_call",
+      status: "completed",
+      call_id: call.id,
+      name: call.name,
+      arguments: normalizeToolArguments(call.arguments),
+    }))
+    : [{
+      id: `msg_${randomUUID().replace(/-/g, "")}`,
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [{
+        type: "output_text",
+        text: value.text || "",
+        annotations: [],
+      }],
+    }];
   return {
     id: responseId,
     object: "response",
     created_at: Math.floor(Date.now() / 1000),
     status: "completed",
     model,
-    output: [{
-      id: messageId,
-      type: "message",
-      status: "completed",
-      role: "assistant",
-      content: [{
-        type: "output_text",
-        text,
-        annotations: [],
-      }],
-    }],
-    output_text: text,
+    output,
+    output_text: value.type === "tool_calls" ? "" : (value.text || ""),
     usage: {
       input_tokens: 0,
       output_tokens: 0,
@@ -260,7 +410,6 @@ function signHealth(nonce) {
 
 function writeSse(res, payload) {
   const text = payload.output_text || "";
-  const item = payload.output[0];
   let sequence = 0;
   res.writeHead(200, {
     "content-type": "text/event-stream; charset=utf-8",
@@ -273,37 +422,53 @@ function writeSse(res, payload) {
   };
   send("response.created", { response: { ...payload, status: "queued", output: [] } });
   send("response.in_progress", { response: { ...payload, status: "in_progress", output: [] } });
-  send("response.output_item.added", {
-    output_index: 0,
-    item: { ...item, status: "in_progress", content: [] },
+  payload.output.forEach((item, outputIndex) => {
+    send("response.output_item.added", {
+      output_index: outputIndex,
+      item: item.type === "message" ? { ...item, status: "in_progress", content: [] } : { ...item, status: "in_progress" },
+    });
+    if (item.type === "function_call") {
+      send("response.function_call_arguments.delta", {
+        output_index: outputIndex,
+        item_id: item.id,
+        delta: item.arguments || "",
+      });
+      send("response.function_call_arguments.done", {
+        output_index: outputIndex,
+        item_id: item.id,
+        arguments: item.arguments || "",
+      });
+    } else {
+      const itemText = item.content && item.content[0] ? item.content[0].text || "" : text;
+      send("response.content_part.added", {
+        output_index: outputIndex,
+        content_index: 0,
+        item_id: item.id,
+        part: { type: "output_text", annotations: [], text: "" },
+      });
+      send("response.output_text.delta", {
+        output_index: outputIndex,
+        content_index: 0,
+        item_id: item.id,
+        delta: itemText,
+        logprobs: [],
+      });
+      send("response.output_text.done", {
+        output_index: outputIndex,
+        content_index: 0,
+        item_id: item.id,
+        text: itemText,
+        logprobs: [],
+      });
+      send("response.content_part.done", {
+        output_index: outputIndex,
+        content_index: 0,
+        item_id: item.id,
+        part: { type: "output_text", annotations: [], text: itemText },
+      });
+    }
+    send("response.output_item.done", { output_index: outputIndex, item });
   });
-  send("response.content_part.added", {
-    output_index: 0,
-    content_index: 0,
-    item_id: item.id,
-    part: { type: "output_text", annotations: [], text: "" },
-  });
-  send("response.output_text.delta", {
-    output_index: 0,
-    content_index: 0,
-    item_id: item.id,
-    delta: text,
-    logprobs: [],
-  });
-  send("response.output_text.done", {
-    output_index: 0,
-    content_index: 0,
-    item_id: item.id,
-    text,
-    logprobs: [],
-  });
-  send("response.content_part.done", {
-    output_index: 0,
-    content_index: 0,
-    item_id: item.id,
-    part: { type: "output_text", annotations: [], text },
-  });
-  send("response.output_item.done", { output_index: 0, item });
   send("response.completed", { response: payload });
   res.write("data: [DONE]\n\n");
   res.end();
@@ -342,8 +507,8 @@ const server = http.createServer(async (req, res) => {
       res.end(upstreamResponse.text);
       return;
     }
-    const text = await callChat(provider, auth, request, upstreamModel);
-    const payload = responsePayload(upstreamModel || request.model, text);
+    const result = await callChat(provider, auth, request, upstreamModel);
+    const payload = responsePayload(upstreamModel || request.model, result);
     if (request.stream) {
       writeSse(res, payload);
     } else {
@@ -360,3 +525,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`${ADAPTER_NAME} ${ADAPTER_VERSION} listening on http://127.0.0.1:${PORT}`);
 });
+

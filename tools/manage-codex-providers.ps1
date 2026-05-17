@@ -94,6 +94,7 @@ $script:CodexSwitcherScriptDir = Split-Path -Parent $script:CodexSwitcherScriptP
 Convert-CodexCatalogKeysToPlaintext
 $script:CodexSwitcherBuild = Get-CodexSwitcherBuildInfo
 $script:CodexSwitcherSettings = Get-CodexSwitcherSettings
+$script:CreatingNewProvider = $false
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -1002,6 +1003,69 @@ function Get-SeriesModelDepths {
     return @($depths)
 }
 
+function Get-NormalizedReasoningEffortValues {
+    param($Values)
+
+    $normalized = @()
+    foreach ($depth in @($Values)) {
+        $value = ([string]$depth).Trim()
+        if ($value -and $script:ReasoningEffortValues -contains $value -and $normalized -notcontains $value) {
+            $normalized += $value
+        }
+    }
+    return @($normalized)
+}
+
+function Get-ExistingModelReasoningEfforts {
+    param([string]$Model)
+
+    $currentMap = $script:CodexSwitcherSettings.modelReasoningEfforts
+    if ($currentMap -is [System.Collections.IDictionary] -and $currentMap.Contains($Model)) {
+        return @($currentMap[$Model])
+    }
+    if ($currentMap -and $currentMap.PSObject.Properties.Name -contains $Model) {
+        return @($currentMap.$Model)
+    }
+    return @()
+}
+
+function Get-SeriesModelReasoningEffortMap {
+    param([string[]]$Models)
+
+    $map = [ordered]@{}
+    foreach ($series in @($script:SeriesRows)) {
+        foreach ($model in @($series.models)) {
+            $modelName = Get-SeriesModelName -Model $model
+            if (-not $modelName -or $map.Contains($modelName)) {
+                continue
+            }
+
+            $values = @(Get-NormalizedReasoningEffortValues -Values (Get-SeriesModelDepths -Model $model))
+            if ($values.Count -eq 0) {
+                $values = @(Get-NormalizedReasoningEffortValues -Values (Get-ExistingModelReasoningEfforts -Model $modelName))
+            }
+            if ($values.Count -eq 0) {
+                $values = @($script:ReasoningEffortValues)
+            }
+            $map[$modelName] = @($values)
+        }
+    }
+
+    foreach ($model in @($Models)) {
+        if (-not $model -or $map.Contains($model)) {
+            continue
+        }
+
+        $values = @(Get-NormalizedReasoningEffortValues -Values (Get-ExistingModelReasoningEfforts -Model $model))
+        if ($values.Count -eq 0) {
+            $values = @($script:ReasoningEffortValues)
+        }
+        $map[$model] = @($values)
+    }
+
+    return $map
+}
+
 function New-SeriesModelObject {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -1199,7 +1263,7 @@ function Save-ModelSeriesRows {
         $defaultModel = [string]$allModels[0]
     }
 
-    $modelReasoningEfforts = Get-EditedModelReasoningEffortMap -Models $allModels -EditedModel $null
+    $modelReasoningEfforts = Get-SeriesModelReasoningEffortMap -Models $allModels
     $script:CodexSwitcherSettings = Set-CodexSwitcherSettings -Models $allModels -ReasoningEfforts @($script:ReasoningEffortValues) -ModelReasoningEfforts $modelReasoningEfforts -ModelSeries @($script:SeriesRows) -DefaultModel $defaultModel -DefaultReasoningEffort $script:CodexSwitcherSettings.defaultReasoningEffort
     $script:VendorRows = @(Get-CodexModelVendorCatalog)
     Refresh-VendorChecklist
@@ -1573,6 +1637,7 @@ $providerBottomButton.Add_Click({
 })
 
 $newProviderButton.Add_Click({
+    $script:CreatingNewProvider = $true
     $providerList.SelectedIndex = -1
     $providerNameBox.Clear()
     $providerUrlBox.Clear()
@@ -1590,9 +1655,11 @@ $saveProviderButton.Add_Click({
         [System.Windows.MessageBox]::Show("请填写服务名称和服务地址。", "配置模型服务和 KEY", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
         return
     }
+    $url = Normalize-CodexProviderBaseUrl $url
+    $providerUrlBox.Text = $url
 
     $existingId = $null
-    if ($providerList.SelectedIndex -ge 0) {
+    if ((-not $script:CreatingNewProvider) -and $providerList.SelectedIndex -ge 0) {
         $existingId = $script:Providers[$providerList.SelectedIndex].id
     }
 
@@ -1602,8 +1669,9 @@ $saveProviderButton.Add_Click({
     }
     $providerModels = @(Get-SelectedProviderModels)
     $providerDefaultModel = [string]$providerDefaultModelCombo.SelectedItem
-    Add-CodexCatalogProvider -Name $name -BaseUrl $url -EnvKey "CODEX_PROVIDER_API_KEY" -Id $existingId -VendorIds $vendorIds -Models $providerModels -DefaultModel $providerDefaultModel -AllowEmptyModels
-    $targetId = if ($existingId) { $existingId } else { ConvertTo-CatalogId $name }
+    $savedProviderId = Add-CodexCatalogProvider -Name $name -BaseUrl $url -EnvKey "CODEX_PROVIDER_API_KEY" -Id $existingId -VendorIds $vendorIds -Models $providerModels -DefaultModel $providerDefaultModel -AllowEmptyModels
+    $targetId = if ($existingId) { $existingId } else { [string]$savedProviderId }
+    $script:CreatingNewProvider = $false
     Refresh-Providers -PreferredProviderId $targetId
     Set-Status "模型服务已保存。"
 })
@@ -2200,4 +2268,3 @@ $closeButton.Add_Click({ $window.Close() })
 Refresh-Providers
 Load-SwitcherSettings
 [void]$window.ShowDialog()
-

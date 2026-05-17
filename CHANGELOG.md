@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.5.5
+
+- 核心安装新增 Microsoft Visual C++ Redistributable x64 自动安装，修复空白机缺少 `vcruntime140.dll` / `msvcp140.dll` 导致启动失败的问题。
+- 核心安装新增 `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` 自动修复，避免 Node/npm 已安装但 `npm.ps1` 被 PowerShell 执行策略拦截。
+- 安装环境页新增 VC++ 运行库和 PowerShell 执行策略状态行，便于同事装机时直接定位依赖问题。
+- Windows exe 外壳改为 .NET Framework 4.8 兼容构建，构建脚本优先使用系统自带 `csc.exe`，不再强制安装 .NET 8 SDK。
+
+## v0.5.4
+
+- 修复 DeepSeek / GLM / Kimi / MiniMax 等 Chat Completions 适配通道只能输出文本、不能驱动 Codex 工具调用的问题。
+- 本机 adapter 新增 Responses `tools` 与 Chat Completions `tools` 的双向转换：Codex `function_call` 会转成上游 `tool_calls`，工具执行结果会转回上游 `tool` message。
+- 支持模型一次返回多个并行工具调用，并在回传给 Chat Completions 时合并为同一个 assistant `tool_calls` 消息，满足上游协议要求。
+- DeepSeek 工具调用路径默认关闭 thinking，避免 DeepSeek V4 要求后续请求回传 `reasoning_content`、而 Codex Responses 历史不携带该字段导致的 400 错误。
+- 验证：DeepSeek `deepseek-v4-pro` 可通过 Codex 实际调用 `shell_command` 读取本地 `README.md`；内部只读业务流程验证通过，生产记录数前后保持不变。
+
+## v0.5.3
+
+- 修复 `/v1` 地址归一化逻辑里误用了 PowerShell 7 语法，导致桌面快捷方式通过 Windows PowerShell 5.1 启动时脚本直接退出、启动器报“启动脚本退出过快”的问题。
+- 保留 v0.5.2 的自定义 OpenAI-compatible 地址自动补 `/v1` 行为，但实现改为兼容 Windows PowerShell 5.1。
+- 保持 v0.5.2 的 provider/KEY 内部 id 冲突修复和“新增服务”显式新建模式。
+
+## v0.5.2
+
+- 修复配置页新增中文服务名或中文 KEY 名时内部 id 退化成 `item` / `key`，导致不同 provider 或 KEY 互相覆盖的问题。
+- 修复点击“新增服务”后仍可能沿用当前选中 provider id 保存、结果把旧服务误改写的问题；现在新增流程会显式进入新建模式。
+- 修复自定义 OpenAI-compatible 服务只填站点根地址时未自动补齐 `/v1`，导致 Codex 实际请求落到错误路径、流式返回 HTML 并报 `stream closed before response.completed` 的问题。
+- 保持 no-config 路线：provider 定义和 KEY 仍保存在便携包 state 中，启动时继续通过本次进程参数注入，不写入 `~\.codex\config.toml`。
+
 ## v0.5.1
 
 - 修复干净便携包在未配置本地 KEY 时会自动继承全局 `OPENAI_API_KEY` 或 `~\.codex\auth.json` 的问题。
@@ -63,7 +91,7 @@
 - 新增 `minimax` provider，默认模型 `minimax2.7`，通过本机 adapter 转译到上游 `MiniMax-M2.7` Chat Completions。
 - MiniMax 启动时同样不写 `~/.codex/config.toml`，Codex 侧继续使用临时 `-c model_providers.<id>.*` 参数和本机 adapter 地址。
 - MiniMax adapter 对 Codex 的多段 system message 做合并，并清理上游返回中的 `<think>...</think>` 包裹，避免 `MiniMax-M2.7` 因 chat setting 或思考标签污染导致 smoke test 失败。
-- 连通性测试默认模型补齐 OpenAI-compatible 对照通道的 GPT 模型映射，避免国产实验默认模型误用于对照 provider。
+- 连通性测试默认模型补齐 用户自定义 OpenAI-compatible 服务的 GPT 模型映射，避免国产实验默认模型误用于对照 provider。
 
 ## v0.3.31-no-config-domestic
 
@@ -313,7 +341,5 @@
 - 支持核心安装：Node.js/npm、npm 镜像源、Codex CLI、Codex 初始配置。
 - 支持完整安装：在核心安装基础上补 PowerShell 7 和 Windows Terminal。
 - 支持维护模型服务、KEY、模型和推理强度。
-
-
 
 

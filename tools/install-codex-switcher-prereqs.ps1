@@ -7,12 +7,13 @@
 
 $ErrorActionPreference = "Stop"
 $script:LauncherProductName = "Codex 便捷启动器"
-$script:LauncherVersion = "v0.5.1"
+$script:LauncherVersion = "v0.5.5"
 $script:LauncherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:LauncherLicense = "MIT 协议"
 $script:LauncherGitHub = "GitHub: https://github.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:LauncherGitee = "Gitee: https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:NpmMirror = "https://registry.npmmirror.com"
+$script:VCppRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
 $script:NodeMirrorRoots = @(
     "https://npmmirror.com/mirrors/node",
     "https://mirrors.huaweicloud.com/nodejs"
@@ -103,6 +104,73 @@ function Install-WingetPackage {
     }
 
     throw "$Name 安装失败。"
+}
+
+function Test-VisualCppRuntime {
+    $systemRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "C:\Windows" }
+    $runtimePaths = @(
+        (Join-Path $systemRoot "System32\vcruntime140.dll"),
+        (Join-Path $systemRoot "System32\vcruntime140_1.dll"),
+        (Join-Path $systemRoot "System32\msvcp140.dll")
+    )
+
+    foreach ($path in $runtimePaths) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Ensure-VisualCppRuntime {
+    if (Test-VisualCppRuntime) {
+        Write-Host "Visual C++ Redistributable 已安装。" -ForegroundColor Green
+        return
+    }
+
+    $downloadDir = Join-Path $env:TEMP "codex-quick-launcher-install"
+    New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
+    $redistPath = Join-Path $downloadDir "vc_redist.x64.exe"
+
+    Write-Step "下载 Visual C++ Redistributable"
+    Write-Host $script:VCppRedistUrl -ForegroundColor DarkGray
+    Invoke-WebRequest -Uri $script:VCppRedistUrl -OutFile $redistPath -UseBasicParsing
+
+    Write-Step "安装 Visual C++ Redistributable"
+    Write-Host "> $redistPath /install /quiet /norestart" -ForegroundColor DarkGray
+    $process = Start-Process -FilePath $redistPath -ArgumentList "/install /quiet /norestart" -Wait -PassThru
+    if ($process.ExitCode -notin @(0, 3010, 1638)) {
+        throw "Visual C++ Redistributable install failed with exit code $($process.ExitCode)."
+    }
+
+    if (-not (Test-VisualCppRuntime)) {
+        Write-Host "Visual C++ Redistributable 安装已执行；如果仍提示缺少 vcruntime140.dll，请重启电脑后再试。" -ForegroundColor Yellow
+    }
+}
+
+function Test-CurrentUserExecutionPolicy {
+    $policy = ""
+    try {
+        $policy = [string](Get-ExecutionPolicy -Scope CurrentUser)
+    } catch {
+        $policy = ""
+    }
+
+    return ($policy -in @("RemoteSigned", "Unrestricted", "Bypass"))
+}
+
+function Ensure-CurrentUserExecutionPolicy {
+    if (Test-CurrentUserExecutionPolicy) {
+        Write-Host "PowerShell 当前用户执行策略已允许 npm 脚本运行。" -ForegroundColor Green
+        return
+    }
+
+    Write-Step "设置 PowerShell 当前用户执行策略"
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
+    if (-not (Test-CurrentUserExecutionPolicy)) {
+        throw "PowerShell 执行策略设置失败。请手动运行：Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser"
+    }
 }
 
 function Ensure-NodeAndNpm {
@@ -211,6 +279,7 @@ function Ensure-GitForWindows {
 
 function Ensure-OmxCli {
     Ensure-NodeAndNpm
+    Ensure-CurrentUserExecutionPolicy
     Ensure-NpmMirror
 
     $npm = Get-CommandPath -Names @("npm.cmd", "npm.ps1", "npm")
@@ -252,6 +321,7 @@ function Install-AdvancedComponent {
 
 function Ensure-NpmMirror {
     Update-CurrentPath
+    Ensure-CurrentUserExecutionPolicy
     $npm = Get-CommandPath -Names @("npm.cmd", "npm.ps1", "npm")
     if (-not $npm) {
         throw "未找到 npm，无法配置镜像源。"
@@ -265,6 +335,7 @@ function Ensure-NpmMirror {
 
 function Ensure-CodexCli {
     Update-CurrentPath
+    Ensure-CurrentUserExecutionPolicy
     if (Get-CommandPath -Names @("codex.cmd", "codex.ps1", "codex")) {
         Write-Host "Codex CLI 已安装。" -ForegroundColor Green
         return
@@ -379,6 +450,8 @@ function Test-CodexPrereqs {
         Winget = [bool](Get-CommandPath -Names @("winget.exe", "winget"))
         PowerShell7 = [bool](Get-CommandPath -Names @("pwsh.exe", "pwsh"))
         WindowsTerminal = [bool](Get-CommandPath -Names @("wt.exe", "wt"))
+        VisualCppRuntime = [bool](Test-VisualCppRuntime)
+        ExecutionPolicy = [bool](Test-CurrentUserExecutionPolicy)
         Node = [bool](Get-CommandPath -Names @("node.exe", "node"))
         Npm = [bool]$npm
         NpmMirror = ($registry -eq $script:NpmMirror)
@@ -420,6 +493,8 @@ try {
     if ($AdvancedComponent) {
         Install-AdvancedComponent -Name $AdvancedComponent
     } else {
+        Ensure-VisualCppRuntime
+        Ensure-CurrentUserExecutionPolicy
         Ensure-NodeAndNpm
         Ensure-NpmMirror
         Ensure-CodexCli
@@ -432,7 +507,7 @@ try {
         $state = Test-CodexPrereqs
         $state | Format-List
 
-        $ok = ($state.Node -and $state.Npm -and $state.NpmMirror -and $state.Codex -and $state.CodexConfig)
+        $ok = ($state.VisualCppRuntime -and $state.ExecutionPolicy -and $state.Node -and $state.Npm -and $state.NpmMirror -and $state.Codex -and $state.CodexConfig)
         if ($Full) {
             $ok = ($ok -and $state.PowerShell7 -and $state.WindowsTerminal)
         }
@@ -456,7 +531,4 @@ try {
     Write-Host "可以保留这个窗口，把上面的错误发给维护者。" -ForegroundColor Yellow
     exit 1
 }
-
-
-
 

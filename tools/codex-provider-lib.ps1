@@ -1,11 +1,11 @@
 ﻿$script:CodexSwitcherProductName = "Codex 便捷启动器"
-$script:CodexSwitcherVersion = "v0.5.1"
+$script:CodexSwitcherVersion = "v0.5.5"
 $script:CodexSwitcherAuthors = "夏小曦 & 知晴 & 砚行"
 $script:CodexSwitcherGitHub = "https://github.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherGitee = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher"
 $script:CodexSwitcherUpdateManifestUrl = "https://gitee.com/wuyuhunter/codex-third-party-quick-launcher/raw/main/update/manifest.json"
 $script:CodexSwitcherLicense = "MIT 协议"
-$script:DefaultCodexSwitcherModels = @("qwen3.6-plus", "qwen-plus", "qwen-max", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner", "glm-5.1", "glm-4-plus", "kimi-k2.6", "minimax2.7", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+$script:DefaultCodexSwitcherModels = @("qwen3.6-plus", "qwen-plus", "qwen-max", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner", "glm-5.1", "glm-4-plus", "kimi-k2.6", "minimax2.7", "hunyuan-2.0-thinking-20251109", "mimo-v2.5-pro", "moonshot-v1-auto", "moonshot-v1-32k", "moonshot-v1-8k", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
 $script:DefaultCodexSwitcherReasoningEfforts = @("medium", "high", "low", "xhigh")
 $script:DefaultCodexSwitcherPermissionMode = "safe"
 
@@ -46,6 +46,18 @@ function Get-DefaultCodexModelVendorCatalog {
             name = "MiniMax"
             defaultModel = "minimax2.7"
             models = @("minimax2.7")
+        }
+        [pscustomobject]@{
+            id = "tencent"
+            name = "Tencent Hunyuan / 混元"
+            defaultModel = "hunyuan-2.0-thinking-20251109"
+            models = @("hunyuan-2.0-thinking-20251109")
+        }
+        [pscustomobject]@{
+            id = "mimo"
+            name = "Xiaomi MiMo / 小米"
+            defaultModel = "mimo-v2.5-pro"
+            models = @("mimo-v2.5-pro")
         }
         [pscustomobject]@{
             id = "custom"
@@ -165,6 +177,8 @@ function Get-DefaultCodexModelReasoningEffortMap {
         "glm-4-plus" = @("medium")
         "kimi-k2.6" = @("medium")
         "minimax2.7" = @("medium")
+        "hunyuan-2.0-thinking-20251109" = @("medium")
+        "mimo-v2.5-pro" = @("medium")
         "moonshot-v1-auto" = @("medium")
         "moonshot-v1-32k" = @("medium")
         "moonshot-v1-8k" = @("medium")
@@ -194,6 +208,8 @@ function Infer-CodexModelVendorId {
     if ($id -match 'glm|bigmodel' -or $name -match 'glm|智谱' -or $baseUrl -match 'bigmodel') { return "glm" }
     if ($id -match 'kimi|moonshot' -or $name -match 'kimi|moonshot' -or $baseUrl -match 'moonshot') { return "kimi" }
     if ($id -match 'minimax' -or $name -match 'minimax' -or $baseUrl -match 'minimax') { return "minimax" }
+    if ($id -match 'tencent|hunyuan|tokenhub' -or $name -match 'tencent|hunyuan|混元|腾讯' -or $baseUrl -match 'tokenhub|tencent') { return "tencent" }
+    if ($id -match 'mimo|xiaomi' -or $name -match 'mimo|xiaomi|小米' -or $baseUrl -match 'xiaomimimo') { return "mimo" }
     if ($id -match 'openai' -or $name -match 'openai' -or $baseUrl -match 'openai') { return "openai" }
     return "custom"
 }
@@ -1076,6 +1092,75 @@ function ConvertTo-CatalogId {
     return $id
 }
 
+function Normalize-CodexProviderBaseUrl {
+    param([AllowEmptyString()][string]$BaseUrl)
+
+    $value = ([string]$BaseUrl).Trim()
+    if (-not $value) {
+        return ""
+    }
+
+    $value = $value.TrimEnd('/')
+    if ($value -match '/v1$' -or $value -match '/compatible-mode/v1$' -or $value -match '/api/paas/v4$') {
+        return $value
+    }
+
+    try {
+        $uri = [Uri]$value
+        $path = [string]$uri.AbsolutePath
+        if (-not $path) {
+            $path = ""
+        }
+        $path = $path.TrimEnd('/')
+        if (-not $path) {
+            return ($value + '/v1')
+        }
+        if ($path -eq '/api' -or $path -eq '/openai') {
+            return ($value + '/v1')
+        }
+    } catch {
+    }
+
+    return $value
+}
+
+function Get-UniqueCatalogId {
+    param(
+        [AllowEmptyString()][string]$PreferredId,
+        [string[]]$ExistingIds = @(),
+        [AllowEmptyString()][string]$FallbackSeed = ""
+    )
+
+    $candidate = ([string]$PreferredId).Trim().ToLowerInvariant()
+    if (-not $candidate) {
+        $candidate = ConvertTo-CatalogId $(if ($FallbackSeed) { $FallbackSeed } else { "item" })
+    }
+    if (-not $candidate) {
+        $candidate = "item"
+    }
+
+    $seen = @{}
+    foreach ($existingId in @($ExistingIds)) {
+        $value = ([string]$existingId).Trim().ToLowerInvariant()
+        if ($value) {
+            $seen[$value] = $true
+        }
+    }
+
+    if (-not $seen.ContainsKey($candidate)) {
+        return $candidate
+    }
+
+    $suffix = 2
+    while ($true) {
+        $next = "$candidate-$suffix"
+        if (-not $seen.ContainsKey($next)) {
+            return $next
+        }
+        $suffix++
+    }
+}
+
 function Get-CatalogSecretPath {
     param(
         [Parameter(Mandatory = $true)][string]$ProviderId,
@@ -1653,8 +1738,11 @@ function Add-CodexCatalogProvider {
         [switch]$AllowEmptyModels
     )
 
+    $BaseUrl = Normalize-CodexProviderBaseUrl $BaseUrl
     $catalog = Get-CodexProviderCatalog
-    if (-not $Id) { $Id = ConvertTo-CatalogId $Name }
+    if (-not $Id) {
+        $Id = Get-UniqueCatalogId -PreferredId (ConvertTo-CatalogId $Name) -ExistingIds @(@($catalog.providers) | ForEach-Object { [string]$_.id }) -FallbackSeed $Name
+    }
     $normalizedVendorIds = @()
     foreach ($item in @($VendorIds)) {
         $value = ([string]$item).Trim().ToLowerInvariant()
@@ -1723,6 +1811,7 @@ function Add-CodexCatalogProvider {
         }
     }
     Save-CodexProviderCatalog -Catalog $catalog | Out-Null
+    return [string]$Id
 }
 
 function ConvertTo-CodexConfigString {
@@ -1822,7 +1911,9 @@ function Add-CodexCatalogKey {
         throw "Unknown provider: $ProviderName"
     }
 
-    if (-not $KeyId) { $KeyId = ConvertTo-CatalogId $KeyName }
+    if (-not $KeyId) {
+        $KeyId = Get-UniqueCatalogId -PreferredId (ConvertTo-CatalogId $KeyName) -ExistingIds @(@($provider.keys) | ForEach-Object { [string]$_.id }) -FallbackSeed $KeyName
+    }
     $keyRow = @($provider.keys) | Where-Object { $_.id -eq $KeyId } | Select-Object -First 1
     if ($keyRow) {
         $keyRow.name = $KeyName
@@ -1861,6 +1952,7 @@ function Add-CodexCatalogKey {
     }
 
     Save-CodexProviderCatalog -Catalog $catalog | Out-Null
+    return [string]$KeyId
 }
 
 function Remove-CodexCatalogKey {
@@ -2094,6 +2186,4 @@ function Get-CurrentCodexSelection {
 
     return $null
 }
-
-
 
